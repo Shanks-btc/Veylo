@@ -1,0 +1,39 @@
+{
+  "name": "@veylo/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/bin/server.js",
+    "worker:settlement": "node dist/bin/worker.js",
+    "worker:agents": "node dist/bin/worker-agents.js",
+    "db:migrate": "node dist/bin/migrate.js"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.5",
+    "@fastify/cors": "11.4.1",
+    "@fastify/helmet": "13.2.0",
+    "@fastify/rate-limit": "11.2.2",
+    "@veylo/chains": "workspace:*",
+    "@veylo/config": "workspace:*",
+    "@veylo/db": "workspace:*",
+    "@veylo/intents": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "fastify": "5.12.8",
+    "pg": "8.23.1",
+    "zod": "4.6.7",
+    "@veylo/core": "workspace:*",
+    "@veylo/secrets": "workspace:*",
+    "pg-boss": "12.38.1",
+    "pino": "10.4.0",
+    "@noble/ciphers": "2.4.0",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/base": "2.4.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "esbuild": "0.28.2"
+  }
+}

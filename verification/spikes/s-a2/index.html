@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S-A2 Meteor signing</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 860px; margin: 0 auto; padding: 16px; }
+  button { font: inherit; padding: 8px 14px; margin: 4px 8px 4px 0; cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .5; }
+  pre, textarea { font: 13px/1.4 ui-monospace, monospace; width: 100%; box-sizing: border-box; }
+  pre { white-space: pre-wrap; word-break: break-all; padding: 10px; border: 1px solid #8884; }
+  textarea { height: 280px; }
+  .note { border-left: 4px solid #c90; padding: 8px 12px; }
+  .status { font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>S-A2: sign two recorded payloads</h1>
+<p class="note"><strong>Nothing here is submitted.</strong> These are old payloads from our tests. Each names the dev treasury as signer, not your account, so your signature can't move anything. This page has no code that sends your signature anywhere. It only shows it to you.</p>
+<p><button id="connect">1. Connect Meteor</button> <span id="account" class="status"></span></p>
+<div id="payloads"></div>
+<h2>Output to copy</h2>
+<p>When both are done, click Copy and paste into <code>verification/spikes/s-a2/signed-output.json</code>.</p>
+<p><button id="copy">Copy output</button> <span id="copied" class="status"></span></p>
+<textarea id="output" readonly></textarea>
+<h2>Network requests this page can see</h2>
+<p>Requests from inside the wallet's sandboxed frame aren't visible here. The browser's Network tab shows everything.</p>
+<pre id="network"></pre>
+<script type="module" src="./page.js"></script>
+</body>
+</html>

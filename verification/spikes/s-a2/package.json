@@ -1,0 +1,11 @@
+{
+  "name": "veylo-spike-s-a2",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Throwaway. Local page for signing recorded payloads with a real wallet. Nothing is submitted.",
+  "dependencies": {
+    "@hot-labs/near-connect": "0.12.0",
+    "esbuild": "0.25.12"
+  }
+}

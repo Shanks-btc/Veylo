@@ -1,0 +1,9 @@
+{
+  "source": "verification/results/T5-c2-submit-intent.json (dev treasury, public data). signature is signatureAsRecorded re-encoded as base64, the wallet output shape.",
+  "message": "{\"deadline\":\"2026-11-08T15:37:38.033Z\",\"intents\":[{\"intent\":\"transfer\",\"receiver_id\":\"8993545ee9c93a932549745951a5d80336a263a627808fbe0989091000c7f372\",\"tokens\":{\"nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\":\"507579\"}}],\"signer_id\":\"a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce\"}",
+  "nonce": "Vij2xgAlKBKzQJ4FDfkb5hiPOQAFtaRI7X9rloH/8K0=",
+  "recipient": "intents.near",
+  "publicKey": "ed25519:CLfSXSJR9qqkHNPXmiPRuFqeyCh5eLtMYBj4ZbDTCBvD",
+  "signature": "0DrebiJqmn9jER3E0jC/6Kb5SDuiMkzv+GOoMLh17hoB6hEu//CUfZWg+DBL6V+hqwhYd25/oe00mgChaUIHBw==",
+  "signatureAsRecorded": "ed25519:5ATx7d1eZM6Yref2at7MUP6uWNTPEH2KHLR7rXo5dFtMwEQwCeETyvwoqKkHQZ175T7WRVt8GANEr9rHy1b35A4N"
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_org_required_except_auth" CHECK ("audit_log"."org_id" IS NOT NULL OR "audit_log"."action" LIKE 'auth.%');

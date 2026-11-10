@@ -1,0 +1,21 @@
+{
+  "source": "verification/results/T5b-shield-submit.json (dev treasury, public data; secrets redacted at capture)",
+  "status": 201,
+  "request": {
+    "type": "swap_transfer",
+    "signedData": {
+      "standard": "nep413",
+      "payload": {
+        "message": "{\"deadline\":\"2026-11-08T16:08:00.367Z\",\"intents\":[{\"intent\":\"transfer\",\"receiver_id\":\"f888b932a1d6f40914a84d2df193907714943d2bd926a8a1c1404e05f36d9153\",\"tokens\":{\"nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\":\"300000\"}}],\"signer_id\":\"a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce\"}",
+        "nonce": "Vij2xgAlKBKzwLmXWKEd5hg2IqKQIeoO/WmQtNhod68=",
+        "recipient": "intents.near"
+      },
+      "public_key": "ed25519:CLfSXSJR9qqkHNPXmiPRuFqeyCh5eLtMYBj4ZbDTCBvD",
+      "signature": "ed25519:2WbQh1dyYwQc7XBvy4YXTvk7Xw6F3ahtNdXKLZ3m1CpAMo7tAywhrUu7rcGAAU1yFF8KKZ84uET1Wcistgqwghy1"
+    }
+  },
+  "body": {
+    "intentHash": "5a9jHu1gqkDZk4Ao8CJTuZ4HwHkytHP1yrxMfRfqbJs6",
+    "correlationId": "08b38477-bb88-4d70-be8a-3f174f8f7653"
+  }
+}

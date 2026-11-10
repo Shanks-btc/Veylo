@@ -1,0 +1,16 @@
+{
+  "name": "@veylo/intents",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/base": "2.4.0",
+    "@veylo/core": "workspace:*",
+    "zod": "4.6.7"
+  }
+}

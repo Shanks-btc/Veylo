@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Holds the founder's account, public key and signatures. Stays local.
+signed-output*.json

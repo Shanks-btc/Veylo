@@ -1,0 +1,24 @@
+{
+  "name": "@veylo/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./test-db": "./src/test-db.ts"
+  },
+  "scripts": {
+    "generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@veylo/config": "workspace:*",
+    "@veylo/core": "workspace:*",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
+    "drizzle-kit": "0.31.11",
+    "@types/pg": "8.23.1"
+  }
+}

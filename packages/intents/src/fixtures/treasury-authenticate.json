@@ -1,0 +1,22 @@
+{
+  "source": "verification/results/T6-t6-authenticate.json (dev treasury, public data; secrets redacted at capture)",
+  "status": 201,
+  "request": {
+    "signedData": {
+      "standard": "nep413",
+      "payload": {
+        "recipient": "intents.near",
+        "nonce": "Vij2xgAlKBKzgLApc3s25RiA+MSZNTblGKZ7vRX3VBs=",
+        "message": "{\"deadline\":\"2026-11-05T17:32:10.418Z\",\"intents\":[],\"signer_id\":\"a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce\"}"
+      },
+      "public_key": "ed25519:CLfSXSJR9qqkHNPXmiPRuFqeyCh5eLtMYBj4ZbDTCBvD",
+      "signature": "ed25519:t52bfQCksNWKSS7vBAMNsCqW18Fwk4C9BiZ38TD3yiBRJMiNuJ4FAGDm5YabpsnL2xZhoKCagmkeUE4erJYiehJ"
+    }
+  },
+  "body": {
+    "accessToken": "[REDACTED]",
+    "refreshToken": "[REDACTED]",
+    "expiresIn": 900,
+    "refreshExpiresIn": 604800
+  }
+}

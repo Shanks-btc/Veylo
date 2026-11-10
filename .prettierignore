@@ -1,0 +1,10 @@
+verification/
+node_modules/
+dist/
+coverage/
+pnpm-lock.yaml
+packages/db/migrations/
+ARCHITECTURE*.md
+DECISIONS*.md
+VERIFICATION*.md
+verifications.md

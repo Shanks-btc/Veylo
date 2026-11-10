@@ -1,0 +1,46 @@
+{
+  "source": "verification/results/T5b-payout-dry.json (dev treasury to dev recipient, public data)",
+  "status": 201,
+  "body": {
+    "quote": {
+      "amountIn": "105882",
+      "amountInFormatted": "0.105882",
+      "amountInUsd": "0.105844306008",
+      "minAmountIn": "104823",
+      "amountOut": "100000",
+      "amountOutFormatted": "0.1",
+      "amountOutUsd": "0.099964400000",
+      "minAmountOut": "100000",
+      "timeEstimate": 12,
+      "refundFee": "0",
+      "withdrawFee": "4800"
+    },
+    "quoteRequest": {
+      "dry": true,
+      "depositMode": "SIMPLE",
+      "swapType": "EXACT_OUTPUT",
+      "slippageTolerance": 100,
+      "originAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "depositType": "CONFIDENTIAL_INTENTS",
+      "destinationAsset": "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near",
+      "amount": "100000",
+      "refundTo": "a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce",
+      "refundType": "CONFIDENTIAL_INTENTS",
+      "recipient": "0xAf780910c0E7D41430D4615A437676a87a332C8C",
+      "recipientType": "DESTINATION_CHAIN",
+      "deadline": "2026-11-05T17:40:48.923Z",
+      "confidentiality": "basic",
+      "quoteWaitingTimeMs": 0,
+      "insured": false,
+      "appFees": [
+        {
+          "recipient": "2238fd089f1c92b206c218cd16b8676cb98964e0d50f8ab729c6396a81e07805",
+          "fee": 1
+        }
+      ]
+    },
+    "signature": "ed25519:z8drFJRniTgfHhqUgzT8Wu58244Do4dFnYarLRCvpVM4am1sKrweugNeXkvfCEVH2v6sz48xLSWfXig2kRytDxg",
+    "timestamp": "2026-11-05T17:30:49.464Z",
+    "correlationId": "794eff25-3802-45f6-8310-0eed89a78d87"
+  }
+}

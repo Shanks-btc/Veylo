@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+node_modules/
+*.log
+.DS_Store
+
+# Monorepo
+dist/
+coverage/
+verify-report.md
+.env*
+!.env.example
+verification/results/*
+!verification/results/.gitkeep

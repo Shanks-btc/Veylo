@@ -1,0 +1,55 @@
+{
+  "source": "verification/results/T5b-shield-dry.json (dev treasury, public data; secrets redacted at capture)",
+  "status": 201,
+  "request": {
+    "dry": true,
+    "swapType": "EXACT_INPUT",
+    "slippageTolerance": 100,
+    "originAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "depositType": "INTENTS",
+    "destinationAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "amount": "300000",
+    "recipient": "a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce",
+    "recipientType": "CONFIDENTIAL_INTENTS",
+    "refundTo": "a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce",
+    "refundType": "INTENTS",
+    "deadline": "2026-11-05T16:08:00.367Z"
+  },
+  "body": {
+    "quote": {
+      "amountIn": "300000",
+      "amountInFormatted": "0.3",
+      "amountInUsd": "0.299928000000",
+      "minAmountIn": "300000",
+      "amountOut": "300000",
+      "amountOutFormatted": "0.3",
+      "amountOutUsd": "0.299928000000",
+      "minAmountOut": "297000",
+      "timeEstimate": 10,
+      "refundFee": "0",
+      "withdrawFee": "0"
+    },
+    "quoteRequest": {
+      "dry": true,
+      "depositMode": "SIMPLE",
+      "swapType": "EXACT_INPUT",
+      "slippageTolerance": 100,
+      "originAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "depositType": "INTENTS",
+      "destinationAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "amount": "300000",
+      "refundTo": "a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce",
+      "refundType": "INTENTS",
+      "recipient": "a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce",
+      "recipientType": "CONFIDENTIAL_INTENTS",
+      "deadline": "2026-11-05T16:08:00.367Z",
+      "confidentiality": "basic",
+      "quoteWaitingTimeMs": 0,
+      "insured": false,
+      "appFees": []
+    },
+    "signature": "ed25519:5PYzKpe6yHYhbPVkB6ccnHq2w8YPLSnjnf5MWaSFBwS6UQMTBbuNHx22SA8ubJtdJqGodmJLmakt8GDkK2XoD7sN",
+    "timestamp": "2026-11-05T15:58:00.706Z",
+    "correlationId": "07995f81-6393-4cd0-b385-224231735ee5"
+  }
+}

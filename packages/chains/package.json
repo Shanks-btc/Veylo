@@ -1,0 +1,15 @@
+{
+  "name": "@veylo/chains",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@veylo/intents": "workspace:*",
+    "zod": "4.6.7",
+    "@noble/hashes": "2.4.0",
+    "@scure/base": "2.4.0"
+  }
+}

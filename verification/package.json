@@ -1,0 +1,40 @@
+{
+  "name": "veylo-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "t1": "tsx scripts/t1-tokens.ts",
+    "t2": "tsx scripts/t2-quotes.ts",
+    "t3": "tsx scripts/t3-confidential-access.ts",
+    "t4": "tsx scripts/t4-origin-payout.ts",
+    "t5": "tsx scripts/t5-intents-payout.ts",
+    "t5b": "tsx scripts/t5b-confidential-payout.ts",
+    "t6": "tsx scripts/t6-confidential-balance.ts",
+    "t7": "tsx scripts/t7-x402.ts",
+    "t8": "tsx scripts/t8-gasless-relay.ts",
+    "t9": "tsx scripts/t9-key-permissions.ts",
+    "t10": "tsx scripts/t10-attestation.ts",
+    "test:util": "tsx scripts/test-util.ts",
+    "public-steps": "tsx scripts/public-steps.ts"
+  },
+  "devDependencies": {
+    "@defuse-protocol/intents-sdk": "0.95.0",
+    "@fastnear/x402": "2.5.0",
+    "@solana/kit": "8.6.0",
+    "@solana/web3.js": "3.1.1",
+    "@types/express": "4.17.25",
+    "@types/node": "20.19.43",
+    "@x402/express": "2.18.0",
+    "dotenv": "^18.0.9",
+    "ethers": "6.17.0",
+    "express": "4.22.3",
+    "near-api-js": "7.4.0",
+    "tronweb": "6.5.1",
+    "tsx": "^4.23.15",
+    "typescript": "7.0.2"
+  }
+}

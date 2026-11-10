@@ -1,0 +1,32 @@
+{
+  "name": "veylo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.28.11",
+  "engines": {
+    "node": ">=24.0.0 <25.0.0",
+    "pnpm": ">=11.0.0 <12.0.0"
+  },
+  "scripts": {
+    "verify": "node tools/verify/src/verify.mjs",
+    "build": "node apps/api/build.mjs",
+    "start": "node apps/api/dist/bin/server.js",
+    "test": "vitest run",
+    "typecheck": "node tools/verify/src/verify.mjs --typecheck-only",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:pg": "node tools/verify/src/test-pg.mjs",
+    "db:migrate": "node apps/api/dist/bin/migrate.js",
+    "evidence:generate": "tsx tools/verify/src/evidence-generate.ts",
+    "worker:settlement": "node apps/api/dist/bin/worker.js",
+    "worker:agents": "node apps/api/dist/bin/worker-agents.js"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "prettier": "3.9.10",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12",
+    "tsx": "4.23.15"
+  }
+}

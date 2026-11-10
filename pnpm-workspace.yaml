@@ -1,0 +1,9 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "tools/*"
+
+# esbuild's install script only checks its binary, which arrives through an optional dependency.
+# No dependency needs to run install scripts.
+allowBuilds:
+  esbuild: false

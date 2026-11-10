@@ -1,0 +1,11 @@
+{
+  "source": "verification/results/T6-t6-refresh.json (dev treasury, public data; secrets redacted at capture)",
+  "status": 201,
+  "request": {
+    "refreshToken": "[REDACTED]"
+  },
+  "body": {
+    "accessToken": "[REDACTED]",
+    "expiresIn": 900
+  }
+}

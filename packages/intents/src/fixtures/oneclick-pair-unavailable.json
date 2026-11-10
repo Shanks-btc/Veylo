@@ -1,0 +1,10 @@
+{
+  "source": "verification/results/T2-diag5-usdc-near-to-sol-100.json",
+  "status": 400,
+  "body": {
+    "message": "Quoting for this pair is not available",
+    "correlationId": "ff65c20d-4a06-47a2-871b-086bf1958350",
+    "timestamp": "2026-11-05T14:37:28.983Z",
+    "path": "/v0/quote"
+  }
+}

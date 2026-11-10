@@ -1,0 +1,10 @@
+{
+  "source": "verification/results/T2-quotes-placeholder-run.json",
+  "status": 400,
+  "body": {
+    "message": "recipient is not valid",
+    "correlationId": "2e605367-d4c9-4eb5-8ba3-0976c96e8c7c",
+    "timestamp": "2026-11-05T13:17:16.943Z",
+    "path": "/v0/quote"
+  }
+}

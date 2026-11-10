@@ -1,0 +1,23 @@
+{
+  "fetchedAt": "2026-11-06T12:42:47.100Z",
+  "manifestSource": "https://raw.githubusercontent.com/azbang/near-connect/main/repository/manifest.json",
+  "manifestVersion": "1.1.0",
+  "meteorVersion": "1.1.1",
+  "executor": "https://raw.githubusercontent.com/Meteor-Wallet/meteor_wallet_sdk/data-storage/storage/meteor-near-connect-latest.js",
+  "executorSha256": "96210256a89cb382bb7fe95f29d6a2489319da87472fe77018b4cdcbf1672b50",
+  "executorBytes": 2003753,
+  "permissions": {
+    "storage": true,
+    "allowsOpen": [
+      "https://chromewebstore.google.com",
+      "https://wallet.meteorwallet.app",
+      "https://meteorwallet.app",
+      "meteorwallet://",
+      "meteorwalletdev://"
+    ],
+    "external": [
+      "meteorCom",
+      "meteorComV2"
+    ]
+  }
+}

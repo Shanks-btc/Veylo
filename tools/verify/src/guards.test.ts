@@ -5,12 +5,28 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
-const SKIP = new Set(["node_modules", "dist", "coverage", "verification", ".git", "migrations"]);
+// Build output (.next, out, out-bridge, out-local, out-demo) is gitignored. The vendored wallet executor is third-party code pinned by
+// its SHA-256 (apps/web/src/wallet/pins.ts), not product code.
+const SKIP = new Set([
+  "node_modules",
+  "dist",
+  "coverage",
+  "verification",
+  ".git",
+  "migrations",
+  ".next",
+  "out",
+  "out-bridge",
+  "out-local",
+  "out-demo",
+]);
+const VENDORED = join("apps", "web", "public", "wallets");
 
 function filesUnder(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     if (SKIP.has(name)) return [];
     const path = join(dir, name);
+    if (path.endsWith(VENDORED)) return [];
     return statSync(path).isDirectory() ? filesUnder(path) : [path];
   });
 }

@@ -1,0 +1,76 @@
+// One filled icon set for the whole app: Phosphor Icons (MIT), "fill" weight, pinned in package.json.
+// Icons are decorative (aria-hidden): every control that uses one also has a text label.
+import {
+  ArrowRight,
+  Buildings,
+  CalendarCheck,
+  Check,
+  CheckCircle,
+  Clock,
+  Copy,
+  DownloadSimple,
+  FileText,
+  GearSix,
+  GithubLogo,
+  Globe,
+  House,
+  Lightning,
+  DotsThreeOutline,
+  List,
+  LockSimple,
+  Moon,
+  Plus,
+  Receipt,
+  Robot,
+  ShieldCheck,
+  SignOut,
+  Sun,
+  UserCircle,
+  Users,
+  Wallet,
+  Warning,
+  X,
+  XCircle,
+  XLogo,
+} from "@phosphor-icons/react/dist/ssr";
+
+const ICONS = {
+  arrowRight: ArrowRight,
+  buildings: Buildings,
+  calendar: CalendarCheck,
+  check: Check,
+  checkCircle: CheckCircle,
+  clock: Clock,
+  copy: Copy,
+  download: DownloadSimple,
+  file: FileText,
+  gear: GearSix,
+  dots: DotsThreeOutline,
+  github: GithubLogo,
+  globe: Globe,
+  home: House,
+  lightning: Lightning,
+  menu: List,
+  lock: LockSimple,
+  moon: Moon,
+  plus: Plus,
+  receipt: Receipt,
+  robot: Robot,
+  shield: ShieldCheck,
+  signOut: SignOut,
+  sun: Sun,
+  user: UserCircle,
+  users: Users,
+  wallet: Wallet,
+  warning: Warning,
+  close: X,
+  xCircle: XCircle,
+  xLogo: XLogo,
+} as const;
+
+export type IconName = keyof typeof ICONS;
+
+export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+  const Glyph = ICONS[name];
+  return <Glyph size={size} weight="fill" aria-hidden="true" focusable="false" />;
+}

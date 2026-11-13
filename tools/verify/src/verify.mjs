@@ -210,6 +210,17 @@ if (process.env.ONECLICK_PARTNER_KEY?.trim()) {
   if (!build.ok) failures.push({ name: "production build", output: build.output });
 }
 
+// The web app builds as a static site with a strict CSP: every inline script pinned (T-7, L41).
+{
+  const web = run([join(root, "apps", "web", "scripts", "verify-build.mjs")]);
+  results.push({
+    status: web.ok ? "PASS" : "FAIL",
+    name: "web static build with strict CSP (apps/web/out)",
+    detail: web.ok ? `${web.seconds}s` : "build or CSP check failed",
+  });
+  if (!web.ok) failures.push({ name: "web build", output: web.output });
+}
+
 // §11.5: every docs/EVIDENCE.md row against public RPC, no keys. Offline is SKIPPED, never PASS.
 {
   const tsx = join(root, "node_modules", "tsx", "dist", "cli.mjs");
@@ -239,13 +250,14 @@ if (process.env.ONECLICK_PARTNER_KEY?.trim()) {
 }
 
 /** @type {[string, string][]} */
+// Slices 7 (agent attestation) and 8 (agents) are out of scope (L46): code kept, disabled.
 const notImplemented = [
-  ["attestation fetch and cryptographic verification (§11.4)", "slice 7"],
-  ["agent spending-policy tests (§11.1)", "slice 8"],
-  ["privacy check on confidential payouts (§11.6)", "slice 10"],
+  ["attestation fetch and cryptographic verification (§11.4)", "out of scope (L46)"],
+  ["agent spending-policy tests (§11.1)", "out of scope (L46)"],
+  ["privacy check on confidential payouts (§11.6)", "not implemented yet (slice 10)"],
 ];
-for (const [name, slice] of notImplemented) {
-  results.push({ status: "SKIPPED", name, detail: `not implemented yet (${slice})` });
+for (const [name, detail] of notImplemented) {
+  results.push({ status: "SKIPPED", name, detail });
 }
 
 const width = Math.max(...results.map((r) => r.name.length));

@@ -20,7 +20,11 @@
     "db:migrate": "node apps/api/dist/bin/migrate.js",
     "evidence:generate": "tsx tools/verify/src/evidence-generate.ts",
     "worker:settlement": "node apps/api/dist/bin/worker.js",
-    "worker:agents": "node apps/api/dist/bin/worker-agents.js"
+    "worker:agents": "node apps/api/dist/bin/worker-agents.js",
+    "dev:web": "node apps/web/scripts/dev-demo.mjs",
+    "dev:wallet": "node apps/web/scripts/dev-wallet.mjs",
+    "demo": "node tools/verify/src/demo.mjs",
+    "wallets:refresh": "node apps/web/scripts/wallets-refresh.mjs"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

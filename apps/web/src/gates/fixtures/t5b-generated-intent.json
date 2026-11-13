@@ -1,0 +1,8 @@
+{
+  "source": "verification/results/T5b-payout-generate.json, response.body.intent.payload (dev treasury, public data). Data only (L5).",
+  "payload": {
+    "message": "{\"deadline\":\"2026-11-08T17:40:48.923Z\",\"intents\":[{\"intent\":\"transfer\",\"receiver_id\":\"58846af3ebc655cdba9037a9bbb516c4973eb862928931511f13a5e6d1e68246\",\"tokens\":{\"imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1\":\"105882\"}}],\"signer_id\":\"a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce\"}",
+    "nonce": "Vij2xgDhEPMXwBxl4LEi5hjKXCJI5hYDrF37Jkclwas=",
+    "recipient": "intents.far"
+  }
+}

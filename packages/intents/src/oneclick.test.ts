@@ -97,6 +97,8 @@ describe("the live-quote guard", () => {
       "QuoteGuardError",
       "acceptanceQuote",
       "oneClickQuoteHash",
+      // Reads the signed fields of a quote already received; it can't request one (slice W1).
+      "signedQuoteFields",
       "verifyQuoteSignature",
     ]);
   });

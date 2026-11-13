@@ -1,6 +1,8 @@
 // Test support only. Every wallet here is a throwaway key made for the test; no network is used.
+import { PAYOUT_ROUTE_IDS } from "@veylo/core";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { ROUTES, type RouteKey } from "@veylo/contract";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { base58, base64 } from "@scure/base";
 import { createIntentsReader, createNearRpc } from "@veylo/chains";
@@ -104,6 +106,10 @@ export async function createHarness() {
     submitQueue: [] as string[],
     statusByDeposit: new Map<string, string[]>(),
     refundedAmount: "0",
+    /** USD per NEAR: what the token list shows, and what a NEAR quote is priced at (W6). */
+    nearListPrice: "3.43",
+    nearQuotePrice: "3.43",
+    tokensStatus: 200,
     saltReads: [] as string[],
     messageDeadline: "2026-11-10T10:15:00.000Z",
     reset() {
@@ -125,6 +131,9 @@ export async function createHarness() {
       one.submitQueue = [];
       one.statusByDeposit = new Map();
       one.refundedAmount = "0";
+      one.nearListPrice = "3.43";
+      one.nearQuotePrice = "3.43";
+      one.tokensStatus = 200;
       one.saltReads = [];
     },
   };
@@ -135,15 +144,31 @@ export async function createHarness() {
     one.requests.push({ path, body });
     const headers = init.headers as Record<string, string>;
     if (headers.authorization) one.lastBearer = headers.authorization.replace("Bearer ", "");
+    if (path === "/v0/tokens") {
+      // The price is text in the response, as 1Click writes it.
+      if (one.tokensStatus !== 200) return reply(one.tokensStatus, {});
+      return new Response(
+        `[{"assetId":"nep141:wrap.near","decimals":24,"blockchain":"near","symbol":"wNEAR","price":${one.nearListPrice},"priceUpdatedAt":"2026-11-07T10:00:00.000Z"},{"assetId":"nep141:usdt.tether-token.near","decimals":6,"blockchain":"near","symbol":"USDT","price":0.999046}]`,
+        { status: 200 },
+      );
+    }
     if (path === "/v0/quote") {
       if (one.quoteReject) return reply(400, { message: one.quoteReject });
       one.deposits += 1;
       const exactOut = body.swapType === "EXACT_OUTPUT";
       const amount = BigInt(body.amount);
+      // A NEAR payout is delivered in yocto: what the treasury spends in USDC units is the NEAR
+      // amount at the quote price, plus the same small fee as any payout.
+      const nearOut = exactOut && body.destinationAsset === "nep141:wrap.near";
+      const priceDigits = one.nearQuotePrice.split(".")[1]?.length ?? 0;
+      const nearSpend = nearOut
+        ? (amount * BigInt(one.nearQuotePrice.replace(".", ""))) /
+          10n ** BigInt(24 - 6 + priceDigits)
+        : amount;
       const quote = exactOut
         ? {
-            amountIn: (amount + 2900n).toString(),
-            minAmountIn: (amount + 2400n).toString(),
+            amountIn: (nearSpend + 2900n).toString(),
+            minAmountIn: (nearSpend + 2400n).toString(),
             amountOut: body.amount,
             minAmountOut: body.amount,
             withdrawFee: "2400",
@@ -333,21 +358,27 @@ export async function createHarness() {
   const intentsReader = createIntentsReader({ url: "https://rpc.invalid", fetch: fakeFetch });
   const secrets = createSecretBox({ masterKey: MASTER_KEY, random: (n) => randomBytes(n) });
 
+  // Every 2xx response the API sends in any test is checked against the web client's contract
+  // (@veylo/contract). A mismatch becomes a 500, so the test that exercised it fails (slice W1).
   const build = async (overrides: Partial<Deps> = {}) => {
-    const app = await buildServer0(overrides);
-    if (process.env.CONTRACT_DUMP) {
-      const fs = await import("node:fs");
-      app.addHook("onSend", async (request, reply, payload) => {
-        const key = `${request.method} ${request.routeOptions.url}`;
-        if (reply.statusCode < 300 && typeof payload === "string" && payload.startsWith("{")) {
-          fs.appendFileSync(process.env.CONTRACT_DUMP as string, JSON.stringify({ key, status: reply.statusCode, body: JSON.parse(payload) }) + String.fromCharCode(10));
-        }
-        return payload;
-      });
-    }
+    const app = await buildUnchecked(overrides);
+    app.addHook("onSend", async (request, reply, payload) => {
+      if (reply.statusCode < 200 || reply.statusCode >= 300) return payload;
+      const key = `${request.method} ${request.routeOptions.url}` as RouteKey;
+      const schema = ROUTES[key];
+      if (schema === undefined) throw new Error(`contract: no schema for ${key}`);
+      if (schema === "csv") return payload;
+      const parsed = schema.safeParse(JSON.parse(String(payload)));
+      if (!parsed.success) {
+        const message = `contract violation on ${key}: ${parsed.error.message.slice(0, 2000)}`;
+        console.error(message);
+        throw new Error(message);
+      }
+      return payload;
+    });
     return app;
   };
-  const buildServer0 = (overrides: Partial<Deps> = {}) =>
+  const buildUnchecked = (overrides: Partial<Deps> = {}) =>
     buildServer({
       db,
       clock: () => clock.now,
@@ -362,6 +393,8 @@ export async function createHarness() {
         webOrigin: "https://app.veylo.test",
         sessionTtlHours: 24,
         logLevel: "silent",
+        // Tests keep every route covered; production uses only the enabled ones (L46).
+        enabledPayoutRoutes: PAYOUT_ROUTE_IDS,
       },
       authRateLimitPerMinute: 100_000,
       ...overrides,
@@ -429,7 +462,7 @@ export async function addMember(
   app: App,
   ownerCookies: Record<string, string>,
   orgId: string,
-  role: "owner" | "viewer" | "accountant",
+  role: "owner" | "viewer" | "accountant" | "preparer",
 ) {
   const member = await signIn(app);
   const res = await app.inject({

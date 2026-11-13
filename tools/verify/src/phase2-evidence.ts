@@ -28,7 +28,7 @@ const near = (date: string, event: string, tx: string, source: string): Phase2Ro
 export const PHASE2_ROWS: readonly Phase2Row[] = [
   {
     date: "2026-11-05T15:17:57Z",
-    event: "T5 funding: 2 USDT sent on BSC to the 1Click deposit address",
+    event: "T5 funding: 2 USDT sent on BSC to the 1Click deposit address (sender redacted)",
     chain: "bsc",
     tx: "0x3b38538e3ca9f818dc451bfb99627ecb404d4030566c090b6385cc09d9e7c711",
     party: "0x11d0411de9b6c725D94aF2d24fC6A6cF4F11bE84",

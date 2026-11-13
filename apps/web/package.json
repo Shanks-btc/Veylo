@@ -1,0 +1,52 @@
+{
+  "name": "@veylo/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/gen-tokens.mjs && node scripts/fonts.mjs && node scripts/images.mjs && next build --webpack && node scripts/csp.mjs",
+    "build:demo": "node scripts/build-demo.mjs",
+    "dev": "node scripts/gen-tokens.mjs && node scripts/fonts.mjs && node scripts/images.mjs && next dev --webpack",
+    "check:browser": "node scripts/build-demo.mjs && node scripts/e2e.mjs",
+    "check:pages": "node scripts/build-demo.mjs && node scripts/pages-check.mjs all",
+    "check:pages:run": "node scripts/pages-check.mjs",
+    "check:embedded": "node scripts/embedded-e2e.mjs",
+    "check:lighthouse": "node scripts/verify-build.mjs && node scripts/lighthouse.mjs"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/instrument-serif": "5.3.0",
+    "@fontsource/inter-tight": "5.3.0",
+    "@hot-labs/near-connect": "0.12.0",
+    "@noble/hashes": "2.4.0",
+    "@phosphor-icons/react": "2.1.10",
+    "@scure/base": "2.4.0",
+    "@scure/bip39": "2.4.0",
+    "@veylo/chains": "workspace:*",
+    "@veylo/contract": "workspace:*",
+    "@veylo/core": "workspace:*",
+    "@veylo/intents": "workspace:*",
+    "next": "16.4.3",
+    "qrcode-generator": "2.0.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "0.186.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@noble/curves": "2.4.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/three": "0.186.0",
+    "@veylo/db": "workspace:*",
+    "axe-core": "4.14.0",
+    "chrome-launcher": "1.2.3",
+    "drizzle-orm": "0.45.4",
+    "esbuild": "0.28.2",
+    "fake-indexeddb": "6.2.8",
+    "lighthouse": "13.5.0",
+    "playwright-core": "1.64.1",
+    "sharp": "0.35.5"
+  }
+}

@@ -273,6 +273,117 @@ Repeat step 3 for 2–3 candidate models.
 **Pass:** at least one capable model returns a model-level TEE attestation with our nonce.
 **Informs:** decision D5 (AI agent model choice) and the "prove the AI ran privately" demo feature.
 
+### S-N — Direct public USDC payout to a NEAR account (mainnet, ≤ $0.10) — PREPARED, NOT RUN
+
+**Status:** prepared in slice W3 (L46). **Not run:** it moves real funds on mainnet, so it needs the founder's explicit approval first. Until it passes, the direct NEAR route (`usdc-near`) is "Coming soon" in the app and refused by the API.
+
+**Question:** Can the treasury pay public USDC from its NEAR Intents balance to a NEAR named account, through 1Click signed-intent execution, gaslessly? (Phase 2 proved confidential NEAR payouts in T5b/T5c and public payouts to Base/Arbitrum in T5. Never public USDC to a NEAR account.)
+
+**Script:** `verification/scripts/s-n-near-direct.ts`. It refuses to start unless `S_N_FOUNDER_APPROVED=yes` is set for that one run.
+
+**Inputs (from `verification/.env`, never printed):** `ONECLICK_JWT`, `TREASURY_ACCOUNT_ID` and `TREASURY_SECRET_KEY` (the dev treasury, never the founder's personal wallet), `CONTRACTOR_NEAR_ACCOUNT` (a NEAR named account the team controls).
+
+**Steps:**
+1. Read the treasury's Intents USDC balance (`intents.near` `mt_balance_of`) and the recipient's USDC balance (`ft_balance_of` on the USDC contract).
+2. Live quote: `EXACT_OUTPUT`, `amount` 100000 (0.10 USDC), `originAsset` and `destinationAsset` both USDC on NEAR, `depositType` `INTENTS`, `recipientType` `DESTINATION_CHAIN`, `refundTo` the treasury. Stop if `amountIn` > 0.10 USDC (L11 cap) or above the balance, or `amountOut` ≠ 100000.
+3. `generate-intent`. Stop unless the standard is `nep413`, the verifier (`recipient`) is `intents.near`, the signer is the treasury, the nonce is canonical, and the total USDC debit is in (0, 0.10].
+4. Sign the payload unmodified; verify locally; record the signed intent (public key and signature, no secret).
+5. `submit-intent`; record the `intentHash`.
+6. Poll `/v0/status` every 5 s until terminal (30 min max); record every transition.
+7. After 60 s, read both balances again; record the recipient's delta and each NEAR transaction's explorer link (`https://nearblocks.io/txns/<hash>`).
+
+**Record (to `verification/results/`, gitignored):** quote, generate-intent, signed intent, submit-intent, status transitions, balances before and after, explorer links.
+**Pass:** status `SUCCESS`; the recipient's USDC grows by exactly 0.10; the treasury's debit is ≤ 0.10 USDC; the recipient paid no gas; the transaction is visible on the NEAR explorer.
+**Unlocks:** enabling `usdc-near` in `ROUTE_AVAILABILITY` (`packages/core/src/routes.ts`), payout verifier `intents.near` in browser gate C, and a new L-row.
+
+### S-P — Contractor portal cash-out, live (mainnet, ≤ $0.05) — PREPARED, NOT RUN
+
+**Status:** prepared in slice W5 (D3). **Not run:** it moves real funds on mainnet, so it needs the founder's explicit approval first.
+
+**Question:** Does the portal's cash-out (a contractor moving their own confidential USDC to an address they type) work end to end? The browser checks for it are built and tested on recorded data (`apps/web/src/portal/cash-out.ts`); the flow itself was proven in T5d (docs/EVIDENCE.md rows 24 to 26).
+
+**Script:** `verification/scripts/s-p-cashout.ts`. It refuses to start unless `S_P_FOUNDER_APPROVED=yes` is set for that one run, then runs `t5d.ts` unchanged, with T5d's own caps (0.03 USDC out, at most 0.05 USDC leaving the balance) and its own stops.
+
+**Inputs (from `verification/.env`, never printed):** the same as T5d: `ONECLICK_JWT`, `TREASURY_ACCOUNT_ID`, `RECIPIENT_NEAR_ACCOUNT_ID`, `RECIPIENT_NEAR_SECRET_KEY` (a dev account, never the founder's personal wallet) and `CONTRACTOR_EVM_ADDRESS`.
+
+**Pass:** as T5d: status `SUCCESS`, the recipient address receives exactly 0.03 USDC, and the privacy check finds no public link from the treasury.
+**Unlocks:** switching on in-app cash-out. (Slice W6 wired the portal's private balance, which only reads: a contractor's wallet signs an empty intent to open a read-only 1Click session, the same mechanism T6 proved for the treasury. Cash-out, which moves money, stays "coming soon" until this spike passes.)
+
+### S-F1 — Fund a treasury with USDC on NEAR through a 1Click deposit address (mainnet, ≤ $0.50) — PREPARED, NOT RUN
+
+**Status:** prepared in slice W6 (part 3a). **Not run:** it sends real USDC on mainnet, so it needs the founder's explicit approval first. Until it passes, the app marks this funding path "not yet tested live".
+
+**Question:** Does 1Click quote and settle a same-asset deposit (USDC on NEAR in, USDC on the treasury's Intents balance out) through a deposit address, gaslessly for the person who funds? No same-asset quote has ever been made (`FUNDING_ORIGINS` marks it `unproven`). If 1Click refuses the quote, the refusal is the finding, and the fallback is a direct `ft_transfer_call` of USDC to `intents.near`.
+
+**Script:** `verification/scripts/s-f1-fund-usdc-near.ts`. It refuses to start unless `S_F1_FOUNDER_APPROVED=yes` is set for that one run.
+
+**Inputs (from `verification/.env`, never printed):** `ONECLICK_JWT`, `TREASURY_ACCOUNT_ID` (the Intents account that receives), `FUNDER_NEAR_ACCOUNT_ID` and `FUNDER_NEAR_SECRET_KEY` (a dev account holding at least 0.45 USDC and a little NEAR, never a personal wallet).
+
+**Steps:** read both balances; live `EXACT_INPUT` quote, `amount` 450000 (0.45 USDC), `depositType` `ORIGIN_CHAIN`, `recipientType` `INTENTS`, `refundTo` the funder; stop unless `amountIn` equals the amount; register the deposit address with the USDC contract if it isn't (about 0.00125 NEAR); `ft_transfer` the quoted `amountIn` to the deposit address; poll `/v0/status` every 5 s (30 min max); read balances again.
+
+**Pass:** status `SUCCESS` and the treasury's Intents USDC grows by at least the quote's `minAmountOut`.
+**Unlocks:** removing the "not yet tested live" note on USDC-on-NEAR funding, and a new L-row.
+
+### S-F2 — Fund a treasury with NEAR, converted to USDC (mainnet, ≤ $0.50 of NEAR) — PREPARED, NOT RUN
+
+**Status:** prepared in slice W6 (part 3a). **Not run:** it sends real NEAR on mainnet, so it needs the founder's explicit approval first. Until it passes, "Fund with NEAR (converted to USDC)" is "coming soon" in the app and refused by the API.
+
+**Question:** Does 1Click convert NEAR sent to a deposit address into USDC on the treasury's Intents balance, with the rate, fee and USDC received the quote promised?
+
+**Script:** `verification/scripts/s-f2-fund-near.ts`. It refuses to start unless `S_F2_FOUNDER_APPROVED=yes` is set for that one run. It sizes the amount from 1Click's listed NEAR price (exact bigint math) and stops unless the amount's USD value is within 0.50.
+
+**Inputs (from `verification/.env`, never printed):** `ONECLICK_JWT`, `TREASURY_ACCOUNT_ID`, `FUNDER_NEAR_ACCOUNT_ID` and `FUNDER_NEAR_SECRET_KEY` (a dev account, never a personal wallet).
+
+**Steps:** read the price and both balances; live `EXACT_INPUT` quote for about 0.45 USD of NEAR (`originAsset` `nep141:wrap.near`, `depositType` `ORIGIN_CHAIN`, `recipientType` `INTENTS`); stop unless `amountIn` equals the amount and its value is within the cap; transfer the quoted `amountIn` of NEAR to the deposit address; poll status (30 min max); read balances again.
+
+**Pass:** status `SUCCESS` and the treasury's Intents USDC grows by at least the quote's `minAmountOut`.
+**Unlocks:** enabling "near" in `FUNDING_AVAILABILITY` (`packages/core/src/routes.ts`), and a new L-row.
+
+### S-FT — Fund a treasury with USDT on NEAR, converted to USDC (mainnet, ≤ $0.50) — PREPARED, NOT RUN
+
+**Status:** prepared in slice W6 (part 3a addendum). **Not run:** it sends real USDT on mainnet, so it needs the founder's explicit approval first. Until it passes, "Fund with USDT on NEAR (converted to USDC)" is "coming soon".
+
+**Question:** Does 1Click convert USDT sent from NEAR (`nep141:usdt.tether-token.near`) into USDC on the treasury's Intents balance? The token's contract and 1Click's listing of it were checked on 2026-11-12 (T1 lists `usdt.tether-token.near`); nothing has been sent.
+
+**Script:** `verification/scripts/s-ft-fund-usdt.ts`. It refuses to start unless `S_FT_FOUNDER_APPROVED=yes` is set for that one run.
+
+**Inputs (from `verification/.env`, never printed):** `ONECLICK_JWT`, `TREASURY_ACCOUNT_ID`, `FUNDER_NEAR_ACCOUNT_ID` and `FUNDER_NEAR_SECRET_KEY` (a dev account holding at least 0.45 USDT and a little NEAR).
+
+**Steps:** as S-F1, with USDT as the origin asset (`ft_transfer` on `usdt.tether-token.near`, registering the deposit address first if needed).
+
+**Pass:** status `SUCCESS` and the treasury's Intents USDC grows by at least the quote's `minAmountOut`.
+**Unlocks:** enabling "usdt-near" in `FUNDING_AVAILABILITY`, and a new L-row.
+
+### S-NR — Pay a contractor in NEAR (mainnet, ≤ $0.10) — PREPARED, NOT RUN
+
+**Status:** prepared in slice W6 (part 3b). **Not run:** it moves real funds on mainnet, so it needs the founder's explicit approval first. Until it passes, the NEAR payout route (`near-direct`) is "coming soon" in the app and refused by the API.
+
+**Question:** Pay from the treasury's USDC, `EXACT_OUTPUT` of NEAR to a NEAR named account. What does the recipient actually receive, native NEAR on their account, or wrapped NEAR (`wrap.near`)? The answer decides how a NEAR payout is described to a contractor and how gate C reads the delivered amount.
+
+**Script:** `verification/scripts/s-nr-near-payout.ts`. It refuses to start unless `S_NR_FOUNDER_APPROVED=yes` is set for that one run. It refuses to sign unless the intent spends only USDC and at most 0.10 USDC.
+
+**Inputs (from `verification/.env`, never printed):** `ONECLICK_JWT`, `TREASURY_ACCOUNT_ID` and `TREASURY_SECRET_KEY` (the dev treasury), `CONTRACTOR_NEAR_ACCOUNT` (a NEAR named account the team controls).
+
+**Steps:** read the NEAR price; read the treasury's Intents USDC, the recipient's native NEAR and its `wrap.near` balance; live `EXACT_OUTPUT` quote for about 0.08 USD of NEAR (`destinationAsset` `nep141:wrap.near`, `recipientType` `DESTINATION_CHAIN`); the same intent checks as S-N; sign, submit, poll; read all three balances again.
+
+**Pass:** status `SUCCESS`, the recipient receives the requested NEAR amount, and the result records which form arrived.
+**Unlocks:** enabling `near-direct` in `ROUTE_AVAILABILITY`, the NEAR variant of gate C against a real quote, and a new L-row. Confidential NEAR payouts are a separate question; the docs checked do not describe one, so the route is direct only.
+
+### S-EW — The Veylo embedded wallet on mainnet (≤ $0.10) — PREPARED, NOT RUN
+
+**Status:** prepared in slice W6 (embedded wallet addendum). **Not run:** it moves real funds on mainnet, so it needs the founder's explicit approval first.
+
+**Question:** Does NEAR Intents accept an intent signed by the key of a Veylo embedded wallet (an implicit 64-hex account whose key is derived from a recovery phrase)? The embedded wallet's own tests prove the derivation, the encryption and the signature offline; this proves the verifier agrees.
+
+**Script:** `verification/scripts/s-ew-embedded-wallet.ts`. It refuses to start unless `S_EW_FOUNDER_APPROVED=yes` is set for that one run. It needs only the throwaway wallet's public account id, never its key or recovery phrase.
+
+**Inputs (from `verification/.env`, never printed):** `ONECLICK_JWT`, `TREASURY_ACCOUNT_ID` and `TREASURY_SECRET_KEY` (the dev treasury), `EW_ACCOUNT_ID` (the implicit account of a throwaway wallet created in the app for this test; never a personal wallet).
+
+**Steps:** read both Intents balances; the dev treasury moves 0.10 USDC to the wallet's Intents balance (`EXACT_OUTPUT`, `INTENTS` to `INTENTS`, same checks as S-N); wait for `SUCCESS`; then the founder signs a transfer of that USDC out in the app with the embedded wallet while the script waits up to 20 minutes for the wallet's balance to drop.
+
+**Pass:** funding `SUCCESS`, and the wallet's Intents USDC drops after the founder signs in the app (the embedded key's intent was accepted).
+**Unlocks:** removing "not yet tested on mainnet" from the embedded wallet, and a new L-row.
+
 ---
 
 ## 3. Decisions these tests unlock

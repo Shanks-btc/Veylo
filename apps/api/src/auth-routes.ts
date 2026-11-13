@@ -33,7 +33,7 @@ const verifyBody = z
   })
   .strict();
 
-function secureCookie(webOrigin: string): boolean {
+export function secureCookie(webOrigin: string): boolean {
   const { hostname } = new URL(webOrigin);
   return hostname !== "localhost" && hostname !== "127.0.0.1";
 }
@@ -153,7 +153,12 @@ export async function authRoutes(app: FastifyInstance, deps: Deps, guards: Guard
   app.get("/me", async (request) => {
     const session = await guards.requireSession(request);
     return {
-      user: { id: session.userId, nearAccountId: session.nearAccountId },
+      user: {
+        id: session.userId,
+        nearAccountId: session.nearAccountId,
+        email: session.email,
+        emailVerified: session.emailVerifiedAt !== null,
+      },
       memberships: await listActiveMembershipsForUser(deps.db, session.userId),
     };
   });

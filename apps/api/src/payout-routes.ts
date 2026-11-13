@@ -15,6 +15,7 @@ import {
   claimAttemptForSigning,
   consumeSignRequest,
   getCurrentHead,
+  isItemAcknowledged,
   getPayRun,
   getPayRunItem,
   getSignRequest,
@@ -28,7 +29,13 @@ import {
   setPayRunStatus,
   writeAudit,
 } from "@veylo/db";
-import { shieldPayloadProblem, toSignedData, verifyNep413 } from "@veylo/intents";
+import {
+  CONFIDENTIAL_TOKEN_PREFIX,
+  CONFIDENTIAL_VERIFIER,
+  shieldPayloadProblem,
+  toSignedData,
+  verifyNep413,
+} from "@veylo/intents";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { parse, type Deps } from "./app.js";
@@ -41,13 +48,9 @@ import { assertTreasurySigner } from "./treasury-signer.js";
 
 const OWNER_ONLY = ["owner"] as const;
 /** Confidential debits are verified on intents.far (S-C, T5b, T5c). Salt read at runtime (L12). */
-const CONFIDENTIAL_VERIFIER = "intents.far";
-/**
- * The confidential token form 1Click generated in T5b, T5c and T5d, for two different signers. Its
- * account part isn't documented; it's pinned as observed and any change will be refused.
- */
-export const CONFIDENTIAL_TOKEN_PREFIX =
-  "imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:";
+// The confidential token form 1Click generated in T5b, T5c and T5d, pinned as observed (L36). Both
+// now live in @veylo/intents, shared with the browser gate.
+export { CONFIDENTIAL_TOKEN_PREFIX };
 const MIN_SECONDS_LEFT = 60;
 
 const itemParams = z.object({ orgId: z.uuid(), payRunId: z.uuid(), itemId: z.uuid() });
@@ -89,6 +92,14 @@ export async function payoutRoutes(app: FastifyInstance, deps: Deps, guards: Gua
       throw conflict("SIMULATED", "A simulated run never reaches signing");
     }
     if (run.status !== "Signing") throw conflict("RUN_WRONG_STATUS", `The run is ${run.status}`);
+    // A warned item (a first payout, a new address, an unusual amount) needs the owner's tick (D5).
+    const warned = ((item.flags ?? []) as { blocking: boolean }[]).some((f) => !f.blocking);
+    if (warned && !(await isItemAcknowledged(deps.db, orgId, itemId))) {
+      throw conflict(
+        "ACKNOWLEDGEMENT_REQUIRED",
+        'Read the warnings on this payout and tick "I\'ve checked this" first',
+      );
+    }
     if (
       !latest ||
       latest.status !== "QUOTED" ||

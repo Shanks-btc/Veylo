@@ -1,0 +1,199 @@
+/* The Veylo wallet page (slice W6). Shown inside a frame of the app, so it fills the frame and
+   works from 320 px wide to a desktop. Colours come from the shared design tokens (tokens.css). No
+   inline styles anywhere: the page's CSP is style-src 'self'. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--c-page);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+.shell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 24px;
+  background: var(--c-card);
+  border: 1px solid var(--c-line);
+  border-radius: 20px;
+}
+h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.hint {
+  color: var(--c-text-muted);
+  font-size: 14px;
+}
+.warn {
+  padding: 12px 14px;
+  background: var(--c-tint-amber);
+  color: var(--c-private-ink);
+  border-radius: 12px;
+  font-size: 14px;
+}
+.notice {
+  max-width: 460px;
+  margin: 12px auto 0;
+  min-height: 1.5em;
+  color: var(--c-text-secondary);
+  font-size: 14px;
+}
+.error {
+  color: var(--c-error);
+  font-size: 14px;
+  min-height: 1.2em;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+label {
+  font-weight: 600;
+  font-size: 14px;
+}
+input,
+textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+  background: var(--c-card);
+  color: var(--c-text);
+  font: inherit;
+}
+textarea {
+  resize: vertical;
+}
+input:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--c-accent);
+  outline-offset: 2px;
+}
+.btn {
+  min-height: 48px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-dark {
+  background: var(--c-ink);
+  color: var(--c-white);
+}
+.btn-dark:hover {
+  background: var(--c-ink-hover);
+}
+.btn-grey {
+  background: var(--c-soft);
+  color: var(--c-text);
+}
+.btn-grey:hover {
+  background: var(--c-soft-hover);
+}
+.words {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: word;
+}
+@media (min-width: 420px) {
+  .words {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.words li {
+  counter-increment: word;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 10px 12px;
+  background: var(--c-soft);
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+.words li::before {
+  content: counter(word) ".";
+  min-width: 2ch;
+  color: var(--c-text-dim);
+  font-size: 12px;
+}
+details {
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+summary {
+  cursor: pointer;
+  min-height: 24px;
+  font-weight: 600;
+}
+.raw {
+  margin: 10px 0 6px;
+  padding: 10px;
+  max-height: 40vh;
+  overflow: auto;
+  background: var(--c-soft);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 360px) {
+  .card {
+    padding: 18px;
+    border-radius: 16px;
+  }
+  h1 {
+    font-size: 21px;
+  }
+}
+@media (max-height: 420px) {
+  .shell {
+    justify-content: flex-start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

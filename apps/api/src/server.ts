@@ -7,6 +7,7 @@ import { createSecretBox } from "@veylo/secrets";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { buildServer } from "./app.js";
+import { createFxClient } from "./fx.js";
 import { installShutdown } from "./lifecycle.js";
 
 const config = loadApiConfig();
@@ -29,6 +30,7 @@ const app = await buildServer({
     quotePublicKey: config.ONECLICK_QUOTE_PUBLIC_KEY,
   }),
   intents: createIntentsReader({ url: config.NEAR_RPC_URL, fetch: globalThis.fetch }),
+  fx: createFxClient({ fetch: globalThis.fetch, clock: () => new Date() }),
   secrets: createSecretBox({
     masterKey: config.SESSION_ENCRYPTION_KEY,
     random: (bytes) => randomBytes(bytes),

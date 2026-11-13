@@ -1,6 +1,7 @@
 import {
   createOrganization,
   findOrCreateUser,
+  findUserByEmail,
   getActiveMembership,
   getActiveMembershipByAccount,
   getMembership,
@@ -19,14 +20,17 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { parse, type Deps } from "./app.js";
 import { nearAccountId } from "./auth-routes.js";
-import { conflict, forbidden, notFound } from "./errors.js";
+import { AppError, conflict, forbidden, notFound } from "./errors.js";
 import type { Guards } from "./guards.js";
 
 const role = z.enum(schema.membershipRoleEnum.enumValues);
 const orgParams = z.object({ orgId: z.uuid() });
 const memberParams = z.object({ orgId: z.uuid(), userId: z.uuid() });
 const createOrgBody = z.object({ name: z.string().trim().min(1).max(200) }).strict();
-const addMemberBody = z.object({ nearAccountId, role }).strict();
+const addMemberBody = z.union([
+  z.object({ nearAccountId, role }).strict(),
+  z.object({ email: z.string().trim().toLowerCase().max(254), role }).strict(),
+]);
 const changeRoleBody = z.object({ role }).strict();
 
 const OWNER_ONLY = ["owner"] as const;
@@ -70,11 +74,15 @@ export async function orgRoutes(app: FastifyInstance, deps: Deps, guards: Guards
   app.post("/orgs", async (request, reply) => {
     const session = await guards.requireSession(request);
     const { name } = parse(createOrgBody, request.body);
+    // The treasury is the owner's wallet account, so an email-only account makes a wallet first.
+    if (!session.nearAccountId)
+      throw conflict("WALLET_REQUIRED", "Create or connect a wallet before you set up a treasury.");
+    const treasuryAccountId = session.nearAccountId;
     const org = await deps.db.transaction(async (tx) => {
       const created = await createOrganization(tx, {
         name,
         // The treasury is the owner's NEAR account (ARCHITECTURE §5).
-        treasuryAccountId: session.nearAccountId,
+        treasuryAccountId,
         ownerUserId: session.userId,
       });
       await writeAudit(tx, {
@@ -90,7 +98,7 @@ export async function orgRoutes(app: FastifyInstance, deps: Deps, guards: Guards
     return reply.status(201).send({
       id: org.id,
       name: org.name,
-      treasuryAccountId: session.nearAccountId,
+      treasuryAccountId,
     });
   });
 
@@ -99,7 +107,8 @@ export async function orgRoutes(app: FastifyInstance, deps: Deps, guards: Guards
     await guards.requireMember(request, orgId);
     const org = await getOrganization(deps.db, orgId);
     if (!org) throw notFound();
-    return org;
+    // Settings (currency, time zone, notices) have their own route; this one stays small and stable.
+    return { id: org.id, name: org.name, treasuryAccountId: org.treasuryAccountId };
   });
 
   app.get("/orgs/:orgId/members", async (request) => {
@@ -113,7 +122,19 @@ export async function orgRoutes(app: FastifyInstance, deps: Deps, guards: Guards
     const { session } = await guards.requireRole(request, orgId, OWNER_ONLY);
     const body = parse(addMemberBody, request.body);
     const userId = await deps.db.transaction(async (tx) => {
-      const user = await findOrCreateUser(tx, body.nearAccountId);
+      // By wallet account (made on the spot if new) or by the email of an account that exists.
+      let user;
+      if ("nearAccountId" in body) {
+        user = await findOrCreateUser(tx, body.nearAccountId);
+      } else {
+        user = await findUserByEmail(tx, body.email);
+        if (!user)
+          throw new AppError(
+            404,
+            "USER_NOT_FOUND",
+            "No Veylo account uses that email. Ask them to sign up first.",
+          );
+      }
       const existing = await getMembership(tx, orgId, user.id);
       if (existing?.status === "active") {
         throw conflict("ALREADY_MEMBER", "This account is already a member");
@@ -133,7 +154,11 @@ export async function orgRoutes(app: FastifyInstance, deps: Deps, guards: Guards
       });
       return user.id;
     });
-    return reply.status(201).send({ userId, nearAccountId: body.nearAccountId, role: body.role });
+    return reply.status(201).send({
+      userId,
+      nearAccountId: "nearAccountId" in body ? body.nearAccountId : null,
+      role: body.role,
+    });
   });
 
   app.patch("/orgs/:orgId/members/:userId", async (request) => {

@@ -12,6 +12,7 @@ import { PgBoss } from "pg-boss";
 import pino from "pino";
 import { installShutdown } from "./lifecycle.js";
 import { loggerOptions } from "./logging.js";
+import { createScheduler } from "./scheduler.js";
 import { createSettlement } from "./settlement.js";
 import { migrationGuard } from "./startup-guard.js";
 
@@ -38,6 +39,9 @@ const settlement = createSettlement({
 });
 void createOneClickDryClient;
 
+// The scheduled-payroll job gets a database and a clock only (D1): it can't quote, sign or submit.
+const scheduler = createScheduler({ db: drizzle(pool, { schema }), clock: () => new Date() });
+
 import { createWorkerShutdownSteps } from "./worker-shutdown.js";
 
 export const JOBS = {
@@ -46,6 +50,10 @@ export const JOBS = {
   "resolve-uncertain-submit": settlement.resolveUncertainSubmits,
   "expire-quotes": settlement.expireQuotes,
   "release-encumbrances": settlement.releaseEncumbrances,
+  // Prepares scheduled drafts and nothing else: it gets a database and a clock, no quoting (D1).
+  "prepare-scheduled-runs": async (log: Parameters<typeof scheduler.prepareDue>[0]) => {
+    await scheduler.prepareDue(log);
+  },
 } as const;
 
 // No job or ticker starts until every migration is applied (L38).

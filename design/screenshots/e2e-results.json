@@ -1,0 +1,289 @@
+{
+  "axe": [
+    {
+      "page": "landing",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "sign-in",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "setup",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "treasury",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "contractors",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "contractor",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "pay-runs",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "pay-run-review",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "pay-run-status",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "ledger",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "add-address",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "privacy-proof",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "proof",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "verify-direct",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "verify-private",
+      "serious": [],
+      "errorNotes": []
+    },
+    {
+      "page": "setup (dark)",
+      "serious": []
+    },
+    {
+      "page": "treasury (dark)",
+      "serious": []
+    },
+    {
+      "page": "contractors (dark)",
+      "serious": []
+    },
+    {
+      "page": "contractor (dark)",
+      "serious": []
+    },
+    {
+      "page": "pay-runs (dark)",
+      "serious": []
+    },
+    {
+      "page": "pay-run-review (dark)",
+      "serious": []
+    },
+    {
+      "page": "pay-run-status (dark)",
+      "serious": []
+    },
+    {
+      "page": "ledger (dark)",
+      "serious": []
+    },
+    {
+      "page": "add-address (dark)",
+      "serious": []
+    },
+    {
+      "page": "privacy-proof (dark)",
+      "serious": []
+    }
+  ],
+  "keyboard": [
+    {
+      "flow": "sign-in",
+      "reachedConnect": true,
+      "focusVisible": true,
+      "signedInAndRedirected": true
+    },
+    {
+      "flow": "pay run review through approval",
+      "approveDisabledBeforeChecks": true,
+      "fivePassed": true,
+      "approveEnabledAfterPass": true,
+      "approvedAndShowedStatus": true
+    }
+  ],
+  "tamper": {
+    "failedChecks": 4,
+    "aFailed": true,
+    "bFailed": true,
+    "plainWords": true,
+    "approveDisabled": true,
+    "passesAgainAfterUndo": true
+  },
+  "failClosed": {
+    "proofSaysCouldntCheck": true,
+    "proofClaimsNothing": true,
+    "verifyDirectSaysCouldntCheck": true,
+    "verifyDirectNoPass": true,
+    "verifyPrivateShowsRecordedStatus": true,
+    "verifyPrivateHasCondition": true
+  },
+  "motion": {
+    "runningAnimations": 0,
+    "marquee": "none",
+    "staticFrameShown": true,
+    "countUpFinal": "20,000.00"
+  },
+  "responsive": [
+    {
+      "width": 360,
+      "page": "landing",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 360,
+      "page": "treasury",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 360,
+      "page": "pay-run-review",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 360,
+      "page": "pay-run-status",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 360,
+      "page": "privacy-proof",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 390,
+      "page": "landing",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 390,
+      "page": "treasury",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 390,
+      "page": "pay-run-review",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 390,
+      "page": "pay-run-status",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 390,
+      "page": "privacy-proof",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 768,
+      "page": "landing",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 768,
+      "page": "treasury",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 768,
+      "page": "pay-run-review",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 768,
+      "page": "pay-run-status",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 768,
+      "page": "privacy-proof",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1024,
+      "page": "landing",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1024,
+      "page": "treasury",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1024,
+      "page": "pay-run-review",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1024,
+      "page": "pay-run-status",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1024,
+      "page": "privacy-proof",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1440,
+      "page": "landing",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1440,
+      "page": "treasury",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1440,
+      "page": "pay-run-review",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1440,
+      "page": "pay-run-status",
+      "horizontalOverflowPx": 0
+    },
+    {
+      "width": 1440,
+      "page": "privacy-proof",
+      "horizontalOverflowPx": 0
+    }
+  ],
+  "three": {
+    "firstContentfulPaintMs": 784,
+    "threeChunkLoadedMs": 2366,
+    "loadedAfterFirstPaint": true
+  },
+  "cspViolations": []
+}

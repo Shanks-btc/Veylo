@@ -1,3 +1,4 @@
+import { PAYOUT_ROUTE_IDS } from "@veylo/core";
 import { Writable } from "node:stream";
 import { schema } from "@veylo/db";
 import { and, eq, isNull } from "drizzle-orm";
@@ -109,7 +110,12 @@ async function signing(opts: { wallet?: Wallet; route?: string; address?: string
 }
 type S = Awaited<ReturnType<typeof signing>>;
 
-const signRequest = async (s: S) => post(`${s.itemUrl}/sign-request`, s.o.cookies);
+/** The owner ticks "I've checked this" for the item's warnings (D5), then asks to sign. */
+const acknowledge = (s: S) => post(`${s.itemUrl}/acknowledge`, s.o.cookies);
+const signRequest = async (s: S) => {
+  await acknowledge(s);
+  return post(`${s.itemUrl}/sign-request`, s.o.cookies);
+};
 async function signAndSubmit(s: S, wallet = s.o.wallet) {
   const r = (await signRequest(s)).json();
   return post(`${s.itemUrl}/sign-request/${r.requestId}/complete`, s.o.cookies, {
@@ -225,9 +231,28 @@ describe("sign request", () => {
   it("refuses with less than 60 s left", async () => {
     const s = await signing();
     h.clock.now = at(15 * 60_000 - 59_000);
+    await acknowledge(s);
     const fresh = await signIn(app, s.o.wallet);
     const res = await post(`${s.itemUrl}/sign-request`, fresh.cookies);
     expect(res.json().error.code).toBe("QUOTE_TOO_CLOSE_TO_DEADLINE");
+  });
+
+  it("a warned item can't be signed until the owner ticks \"I've checked this\" (D5)", async () => {
+    const s = await signing();
+    const before = await post(`${s.itemUrl}/sign-request`, s.o.cookies);
+    expect(before.statusCode).toBe(409);
+    expect(before.json().error.code).toBe("ACKNOWLEDGEMENT_REQUIRED");
+    expect(h.one.requests.find((x) => x.path === "/v0/generate-intent")).toBeUndefined();
+    expect((await acknowledge(s)).statusCode).toBe(200);
+    expect((await post(`${s.itemUrl}/sign-request`, s.o.cookies)).statusCode).toBe(201);
+  });
+
+  it("only the owner can acknowledge, and acknowledging twice is harmless", async () => {
+    const s = await signing();
+    const prep = await addMember(app, s.o.cookies, s.o.orgId, "preparer");
+    expect((await post(`${s.itemUrl}/acknowledge`, prep.cookies)).statusCode).toBe(403);
+    expect((await acknowledge(s)).statusCode).toBe(200);
+    expect((await acknowledge(s)).statusCode).toBe(200);
   });
 
   it("a viewer can't sign", async () => {
@@ -711,6 +736,8 @@ describe("the signed payload is a bearer authorization (L33)", () => {
     const logged = await h.build({
       logStream: stream,
       config: {
+        // Tests keep every payout route covered (L46).
+        enabledPayoutRoutes: PAYOUT_ROUTE_IDS,
         authRecipient: RECIPIENT,
         webOrigin: "https://app.veylo.test",
         sessionTtlHours: 24,

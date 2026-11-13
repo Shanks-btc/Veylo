@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { addressHygieneWarnings, type HygieneDestination } from "./hygiene.js";
-import { getPayoutRoute, PAYOUT_ROUTE_IDS, PAYOUT_ROUTES, TREASURY_ASSET_ID } from "./routes.js";
+import {
+  getPayoutRoute,
+  PAYOUT_ROUTE_IDS,
+  PAYOUT_ROUTES,
+  TREASURY_ASSET_ID,
+  ENABLED_PAYOUT_ROUTE_IDS,
+  ROUTE_AVAILABILITY,
+} from "./routes.js";
 
 const direct = (over: Partial<HygieneDestination> = {}): HygieneDestination => ({
   address: "0xAAA",
@@ -73,13 +80,36 @@ describe("cash-out", () => {
 });
 
 describe("supported routes (L25)", () => {
-  it("are exactly the four MVP routes", () => {
+  it("are the four MVP routes, direct USDC on NEAR (L46) and direct NEAR (W6)", () => {
     expect(PAYOUT_ROUTES.map((r) => [r.id, r.payoutMode, r.decimals])).toEqual([
       ["usdc-base", "direct", 6],
       ["usdc-arbitrum", "direct", 6],
       ["usdc-solana", "direct", 6],
+      ["usdc-near", "direct", 6],
       ["usdc-near-confidential", "private", 6],
+      ["near-direct", "direct", 24],
     ]);
+  });
+
+  it("NEAR-only scope: only the confidential NEAR route is enabled; NEAR direct waits on S-N (L46)", () => {
+    expect(ENABLED_PAYOUT_ROUTE_IDS).toEqual(["usdc-near-confidential"]);
+    expect(ROUTE_AVAILABILITY["usdc-near"]).toBe("coming_soon");
+    expect(ROUTE_AVAILABILITY["near-direct"]).toBe("coming_soon"); // until spike S-NR passes
+    for (const id of ["usdc-base", "usdc-arbitrum", "usdc-solana"] as const)
+      expect(ROUTE_AVAILABILITY[id]).toBe("disabled");
+    expect(Object.isFrozen(ROUTE_AVAILABILITY) || typeof ROUTE_AVAILABILITY === "object").toBe(
+      true,
+    );
+  });
+
+  it("NEAR direct pays public USDC on NEAR to a NEAR account", () => {
+    const r = getPayoutRoute("usdc-near");
+    expect(r).toMatchObject({
+      chain: "near",
+      addressKind: "near",
+      recipientType: "DESTINATION_CHAIN",
+      assetId: TREASURY_ASSET_ID,
+    });
   });
 
   it("have no Tron route", () => {

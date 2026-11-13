@@ -1,3 +1,4 @@
+import { PAYOUT_ROUTE_IDS } from "@veylo/core";
 import { schema } from "@veylo/db";
 import { eq, sql } from "drizzle-orm";
 import { Writable } from "node:stream";
@@ -604,6 +605,8 @@ describe("no secrets", () => {
     const logged = await h.build({
       logStream: stream,
       config: {
+        // Tests keep every payout route covered (L46).
+        enabledPayoutRoutes: PAYOUT_ROUTE_IDS,
         authRecipient: "veylo.test",
         webOrigin: "https://app.veylo.test",
         sessionTtlHours: 24,

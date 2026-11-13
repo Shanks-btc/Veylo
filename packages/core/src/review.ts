@@ -10,12 +10,16 @@ export type ReviewFlag = {
     | "not_contractor_confirmed"
     | "new_destination_since_last_paid"
     | "first_payment"
-    | "amount_deviation";
+    | "amount_deviation"
+    | "address_recently_changed";
   readonly blocking: boolean;
   readonly detail?: string;
 };
 
 export const DEFAULT_DEVIATION_PERCENT = 25;
+
+/** An address that replaced another one can't be approved for payout until it is this old (D5). */
+export const ADDRESS_COOLING_MS = 24 * 60 * 60 * 1000;
 
 /** Pure: everything is passed in, so the same rules can run in the browser later. */
 export function reviewFlags(input: {
@@ -25,7 +29,12 @@ export function reviewFlags(input: {
     id: string;
     enteredBy: "owner" | "contractor";
     contractorConfirmedAt: Date | null;
+    /** When this destination was created, and whether it replaced an earlier one. */
+    createdAt?: Date;
+    replacedAnother?: boolean;
   } | null;
+  /** The moment the flags are computed at; needed for the cooling rule. */
+  now?: Date;
   payable: { payable: boolean; payableReason: PayableReason | "no_active_destination" };
   /** The contractor's last successful live payout, if any. */
   lastPaid: { destinationId: string; amount: bigint } | undefined;
@@ -49,6 +58,18 @@ export function reviewFlags(input: {
   }
 
   const d = input.destination;
+  if (
+    d?.replacedAnother &&
+    d.createdAt &&
+    input.now &&
+    input.now.getTime() - d.createdAt.getTime() < ADDRESS_COOLING_MS
+  ) {
+    flags.push({
+      code: "address_recently_changed",
+      blocking: true,
+      detail: `changed ${d.createdAt.toISOString()}`,
+    });
+  }
   if (d && d.enteredBy === "owner" && d.contractorConfirmedAt === null) {
     flags.push({ code: "not_contractor_confirmed", blocking: false });
   }

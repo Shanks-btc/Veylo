@@ -81,3 +81,34 @@ describe("reviewFlags", () => {
     expect(hasBlockingFlag(reviewFlags({ ...base, contractorStatus: "archived" }))).toBe(true);
   });
 });
+
+describe("address cooling (D5): an address that replaced another can't be approved for 24 hours", () => {
+  const HOUR = 60 * 60 * 1000;
+  const NOW = new Date("2026-11-12T12:00:00.000Z");
+  const dest = (ageMs: number, replacedAnother: boolean) => ({
+    ...base.destination,
+    id: "d1",
+    createdAt: new Date(NOW.getTime() - ageMs),
+    replacedAnother,
+  });
+  it("blocks a replacement made 23 hours 59 minutes ago", () => {
+    expect(codes({ destination: dest(24 * HOUR - 60_000, true), now: NOW })).toContain(
+      "address_recently_changed!",
+    );
+  });
+  it("allows it at exactly 24 hours", () => {
+    expect(codes({ destination: dest(24 * HOUR, true), now: NOW })).not.toContain(
+      "address_recently_changed!",
+    );
+  });
+  it("never blocks a first address, however new", () => {
+    expect(codes({ destination: dest(60_000, false), now: NOW })).not.toContain(
+      "address_recently_changed!",
+    );
+  });
+  it("is a blocking flag, so the item can't be approved", () => {
+    expect(hasBlockingFlag(reviewFlags({ ...base, destination: dest(HOUR, true), now: NOW }))).toBe(
+      true,
+    );
+  });
+});

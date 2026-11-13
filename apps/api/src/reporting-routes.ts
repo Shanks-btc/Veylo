@@ -1,7 +1,14 @@
 // Ledger, payslips, CSV export and the audit view (slice 6). Read-only. Simulated records are shown
 // only when asked for, always labelled, and never exported (L7).
 import { intentsExplorerUrl, txExplorerUrl, type ExplorerChain } from "@veylo/chains";
-import { formatFixed, getPayoutRoute, toCsv, type PayoutRouteId } from "@veylo/core";
+import {
+  formatFixed,
+  getPayoutRoute,
+  impliedRateText,
+  PAYOUT_ROUTES,
+  toCsv,
+  type PayoutRouteId,
+} from "@veylo/core";
 import {
   ledgerAttempts,
   ledgerAttemptsPage,
@@ -83,7 +90,7 @@ function pageOf<T extends { atUs: bigint; id: string }>(rows: T[], n: number) {
   };
 }
 
-type AttemptRow = Awaited<ReturnType<typeof ledgerAttempts>>[number];
+export type AttemptRow = Awaited<ReturnType<typeof ledgerAttempts>>[number];
 
 /** Full chain names for people and the CSV export, never internal codes (L37). */
 const CHAIN_NAMES: Record<string, string> = {
@@ -104,7 +111,38 @@ function routeOf(row: AttemptRow) {
 }
 
 /** Everything about one payout attempt that a person or an auditor could ask for. */
-function presentAttempt(row: AttemptRow) {
+/**
+ * The CSV's "transaction link": "confidential" for a private payout (its NEAR side isn't a public
+ * link to the company), otherwise the destination transaction, or the first NEAR transaction.
+ */
+export function transactionLink(p: {
+  route: string | null;
+  links: { destinationTx: string | null; nearTxs: readonly (string | undefined)[] };
+}): string {
+  const route = PAYOUT_ROUTES.find((r) => r.id === p.route);
+  if (route?.payoutMode === "private") return "confidential";
+  return p.links.destinationTx ?? p.links.nearTxs.find((u) => u !== undefined) ?? "";
+}
+
+/**
+ * What the contractor received (W6). A USDC payout received its amount in USDC. A NEAR payout
+ * received the NEAR amount the signed quote delivers, and its rate is the USDC the treasury spent
+ * per NEAR, fee included, from the quote's own amounts. The salary itself stays the USD amount.
+ */
+function paid(row: AttemptRow, route: ReturnType<typeof routeOf>) {
+  if (route?.asset === "NEAR") {
+    const q = (row.quote as { quote?: { amountOut?: string } } | null)?.quote;
+    const out = q?.amountOut && /^\d+$/.test(q.amountOut) ? BigInt(q.amountOut) : undefined;
+    return {
+      paidCurrency: "NEAR" as const,
+      paidAmount: out === undefined ? null : formatFixed(out, 24),
+      rate: out !== undefined && row.amountIn ? (impliedRateText(row.amountIn, out) ?? null) : null,
+    };
+  }
+  return { paidCurrency: "USDC" as const, paidAmount: usdc(row.amountUsdc), rate: null };
+}
+
+export function presentAttempt(row: AttemptRow) {
   const route = routeOf(row);
   const fees = (row.fees ?? {}) as { withdrawFee?: string; fee?: string };
   const near = strings(row.nearTxHashes);
@@ -127,7 +165,8 @@ function presentAttempt(row: AttemptRow) {
     // Only what was observed (L18).
     statusHistory: row.statusHistory,
     amount: usdc(row.amountUsdc),
-    currency: "USDC",
+    currency: "USDC" as const,
+    ...paid(row, route),
     route: route?.id ?? null,
     routeLabel: route?.label ?? null,
     chain: route?.chain ?? null,
@@ -233,6 +272,9 @@ export async function reportingRoutes(app: FastifyInstance, deps: Deps, guards: 
       period: p.period,
       amount: p.amount,
       currency: p.currency,
+      paidCurrency: p.paidCurrency,
+      paidAmount: p.paidAmount,
+      rate: p.rate,
       route: p.routeLabel,
       chain: chainName(p.chain),
       recipient: p.recipient,
@@ -276,6 +318,10 @@ export async function reportingRoutes(app: FastifyInstance, deps: Deps, guards: 
         "contractor name",
         "amount",
         "currency",
+        "paid currency",
+        "paid amount",
+        "rate (USDC per NEAR)",
+        "quote time",
         "route",
         "chain",
         "recipient",
@@ -289,6 +335,8 @@ export async function reportingRoutes(app: FastifyInstance, deps: Deps, guards: 
         "NEAR tx hash",
         "destination tx hash",
         "destination explorer URL",
+        "transaction link",
+        "payslip ID",
       ],
       rows.map((p) => [
         p.at,
@@ -296,6 +344,10 @@ export async function reportingRoutes(app: FastifyInstance, deps: Deps, guards: 
         p.contractor.name,
         p.amount,
         p.currency,
+        p.paidCurrency,
+        p.paidAmount,
+        p.rate,
+        p.quoteAsOf,
         p.routeLabel,
         chainName(p.chain),
         p.recipient,
@@ -309,6 +361,8 @@ export async function reportingRoutes(app: FastifyInstance, deps: Deps, guards: 
         p.hashes.nearTxHashes.join(" "),
         p.hashes.destinationTxHash,
         p.links.destinationTx,
+        transactionLink(p),
+        p.itemId,
       ]),
     );
     return reply

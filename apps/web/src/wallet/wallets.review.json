@@ -1,0 +1,204 @@
+{
+  "note": "Hand-reviewed decisions for every wallet in the near-connect manifest (slice W6, part 2). Hosts come from reading each executor (scripts/wallets-refresh.mjs prints every host with its line and column); a wallet is enabled only if it passes the rules in docs/WALLETS.md. Changing this file is a reviewed change.",
+  "wallets": {
+    "hot-wallet": {
+      "enabled": true,
+      "kind": "app",
+      "reason": "signMessage declared and implemented with nonce and recipient; hosts enumerated.",
+      "connect": ["https://my.herewallet.app", "https://api0.herewallet.app", "https://h4n.app"],
+      "img": ["https://storage.herewallet.app", "https://hot-labs.org"],
+      "frame": [],
+      "ignore": {
+        "https://app.hot-labs.org": "opened in a new window through the manifest allow-list, never fetched",
+        "https://download.hot-labs.org": "opened in a new window through the manifest allow-list, never fetched",
+        "https://feross.org": "a library comment",
+        "https://fonts.cdnfonts.com": "font stylesheet; blocked, the wallet UI falls back to system fonts",
+        "https://rsms.me": "font stylesheet; blocked, the wallet UI falls back to system fonts"
+      }
+    },
+    "meteor-wallet": {
+      "enabled": true,
+      "kind": "web",
+      "reason": "signMessage declared and implemented with nonce, recipient and callbackUrl; hosts enumerated (reviewed 2026-11-10).",
+      "pinned": {
+        "sha256": "96210256a89cb382bb7fe95f29d6a2489319da87472fe77018b4cdcbf1672b50",
+        "file": "meteor-wallet-1.1.1-96210256a89cb382bb7fe95f29d6a2489319da87472fe77018b4cdcbf1672b50.js",
+        "why": "Exercised against the real Meteor wallet in spike S-A2 (2026-11-10). The manifest points at a moving latest file that changed afterwards, so the tested file stays pinned until the founder approves a new one."
+      },
+      "connect": ["https://mc.meteorwallet.app"],
+      "img": [],
+      "frame": [],
+      "ignore": {
+        "https://apps.apple.com": "store link, opened through the manifest allow-list",
+        "https://archival-rpc.testnet.near.org": "default network config for networks Veylo never uses",
+        "https://meteor-connect-backend-development.meteorwallet.workers.dev": "the development backend, used only when the wallet is built in development mode; blocked",
+        "https://archival-rpc.mainnet.near.org": "default RPC list; the app passes its own provider",
+        "https://cdn.jsdelivr.net": "a library string, not fetched at runtime",
+        "https://chromewebstore.google.com": "store link, opened through the manifest allow-list",
+        "https://explorer.betanet.near.org": "link text",
+        "https://explorer.mainnet.near.org": "link text",
+        "https://explorer.testnet.near.org": "link text",
+        "https://fonts.cdnfonts.com": "font stylesheet; blocked",
+        "https://free.rpc.fastnear.com": "default RPC list; the app passes its own provider",
+        "https://helper.betanet.near.org": "default network config for networks Veylo never uses",
+        "https://helper.mainnet.near.org": "default network config",
+        "https://helper.testnet.near.org": "default network config for networks Veylo never uses",
+        "https://meteorwallet.app": "opened in a new window through the manifest allow-list",
+        "https://play.google.com": "store link, opened through the manifest allow-list",
+        "https://raw.githubusercontent.com": "the wallet logo; Veylo serves it from its own origin",
+        "https://rpc.betanet.near.org": "default network config for networks Veylo never uses",
+        "https://rsms.me": "font stylesheet; blocked",
+        "https://test.rpc.fastnear.com": "default network config for networks Veylo never uses",
+        "https://wallet.near.org": "link text",
+        "https://wallet.meteorwallet.app": "opened in a new window through the manifest allow-list (popup), never fetched",
+        "https://www.mynearwallet.com": "link text"
+      }
+    },
+    "intear-wallet": {
+      "enabled": true,
+      "kind": "web",
+      "reason": "signMessage declared and implemented with nonce, recipient and callbackUrl; hosts enumerated.",
+      "connect": ["wss://logout-bridge-service.intear.tech"],
+      "img": [],
+      "frame": ["https://wallet.intear.tech"],
+      "ignore": {}
+    },
+    "mynearwallet": {
+      "enabled": true,
+      "kind": "web",
+      "reason": "signMessage declared and implemented with nonce, recipient and callbackUrl; hosts enumerated.",
+      "connect": ["https://c1.rpc.fastnear.com", "https://c2.rpc.fastnear.com"],
+      "img": [],
+      "frame": [],
+      "ignore": {
+        "https://app.mynearwallet.com": "opened in a new window through the manifest allow-list (popup), never fetched",
+        "https://testnet.mynearwallet.com": "testnet, never used",
+        "https://explorer.mainnet.near.org": "link text",
+        "https://explorer.testnet.near.org": "link text",
+        "https://feross.org": "a library comment",
+        "https://helper.mainnet.near.org": "default network config; blocked, the wallet falls back to its next provider",
+        "https://helper.testnet.near.org": "testnet, never used",
+        "https://indexer.mainnet.near.org": "default network config; blocked, the wallet falls back to its next provider",
+        "https://indexer.testnet.near.org": "testnet, never used",
+        "https://mths.be": "a library comment",
+        "https://my.herewallet.app": "sent as a Referer header value, not a request target",
+        "https://nearrpc.aurora.dev": "an extra RPC provider; blocked, the wallet falls back to the next one",
+        "https://relmn.aurora.dev": "an extra RPC provider; blocked, the wallet falls back to the next one",
+        "https://rpc.mainnet.near.org": "an extra RPC provider; blocked, the wallet falls back to the next one",
+        "https://rpc.testnet.near.org": "testnet, never used"
+      }
+    },
+    "okx-wallet": {
+      "enabled": true,
+      "kind": "extension",
+      "reason": "signMessage declared and implemented with nonce and recipient; talks to the okxwallet.near browser extension; hosts enumerated.",
+      "connect": ["https://c1.rpc.fastnear.com", "https://c2.rpc.fastnear.com"],
+      "img": [],
+      "frame": [],
+      "ignore": {
+        "https://apps.apple.com": "store link, opened through the manifest allow-list",
+        "https://chromewebstore.google.com": "store link, opened through the manifest allow-list",
+        "https://feross.org": "a library comment",
+        "https://helper.testnet.near.org": "testnet, never used",
+        "https://microsoftedge.microsoft.com": "store link, opened through the manifest allow-list",
+        "https://mths.be": "a library comment",
+        "https://my.herewallet.app": "sent as a Referer header value, not a request target",
+        "https://nearrpc.aurora.dev": "an extra RPC provider; blocked, the wallet falls back to the next one",
+        "https://relmn.aurora.dev": "an extra RPC provider; blocked, the wallet falls back to the next one"
+      }
+    },
+    "near-mobile": {
+      "enabled": true,
+      "kind": "app",
+      "reason": "signMessage declared and implemented with nonce and recipient; hosts enumerated.",
+      "connect": ["https://near-mobile-production.aws.peersyst.tech"],
+      "img": ["https://near-mobile-production.aws.peersyst.tech"],
+      "frame": [],
+      "ignore": {
+        "https://apps.apple.com": "store link, opened through the manifest allow-list",
+        "https://fonts.gstatic.com": "font file; blocked, the wallet UI falls back to system fonts",
+        "https://nearmobile.app": "opened in a new window through the manifest allow-list",
+        "https://play.google.com": "store link, opened through the manifest allow-list"
+      }
+    },
+    "nightly-wallet": {
+      "enabled": true,
+      "kind": "extension",
+      "reason": "signMessage declared and implemented with nonce and recipient; talks to the nightly.near browser extension; hosts enumerated.",
+      "connect": [],
+      "img": [],
+      "frame": [],
+      "ignore": {
+        "https://chromewebstore.google.com": "store link, opened through the manifest allow-list",
+        "https://feross.org": "a library comment",
+        "https://helper.testnet.near.org": "testnet, never used",
+        "https://mths.be": "a library comment",
+        "https://relmn.aurora.dev": "an extra RPC provider; blocked, the wallet falls back to the next one",
+        "https://test.rpc.fastnear.com": "testnet, never used"
+      }
+    },
+    "ledger": {
+      "enabled": false,
+      "kind": "hardware",
+      "reason": "Requests the usb, hid and bluetooth permissions for a sandboxed frame. Veylo does not grant hardware permissions to wallet code, so it is excluded.",
+      "connect": [],
+      "img": [],
+      "frame": [],
+      "ignore": {}
+    },
+    "trezu-wallet": {
+      "enabled": false,
+      "kind": "multisig",
+      "reason": "Its manifest entry declares no signMessage, and a multisig contract account cannot produce the NEP-413 signature Veylo needs (see docs/ECOSYSTEM.md).",
+      "connect": [],
+      "img": [],
+      "frame": [],
+      "ignore": {}
+    },
+    "wallet-connect": {
+      "enabled": false,
+      "kind": "relay",
+      "reason": "Requires the walletConnect permission, which needs a configured WalletConnect project and relay hosts. Veylo has neither, and adds no third-party relay to the bridge.",
+      "connect": [],
+      "img": [],
+      "frame": [],
+      "ignore": {}
+    },
+    "unity-wallet": {
+      "enabled": false,
+      "kind": "relay",
+      "reason": "Uses the same WalletConnect executor as wallet-connect (identical SHA-256), so it is excluded for the same reason.",
+      "connect": [],
+      "img": [],
+      "frame": [],
+      "ignore": {}
+    },
+    "hana-wallet": {
+      "enabled": false,
+      "kind": "extension",
+      "reason": "Its executor is served from a feature branch of a third-party repository, not a release, so its content can change without a version. Excluded until it is released.",
+      "connect": [],
+      "img": [],
+      "frame": [],
+      "ignore": {}
+    },
+    "ethereum-wallets": {
+      "enabled": false,
+      "kind": "evm",
+      "reason": "Its manifest entry declares signMessage false: an EVM wallet through evm-on-near cannot produce the NEP-413 signature Veylo needs.",
+      "connect": [],
+      "img": [],
+      "frame": [],
+      "ignore": {}
+    },
+    "near-cli": {
+      "enabled": false,
+      "kind": "developer",
+      "reason": "A connector for the near-cli command-line tool, a developer tool rather than a wallet for the people Veylo serves.",
+      "connect": [],
+      "img": [],
+      "frame": [],
+      "ignore": {}
+    }
+  }
+}

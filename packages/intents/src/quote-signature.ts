@@ -30,7 +30,7 @@ export function stableStringify(value: Json | undefined): string | undefined {
   return `{${parts.join(",")}}`;
 }
 
-type Signed = {
+export type SignedQuoteResponse = {
   quote: Record<string, any>;
   quoteRequest: Record<string, any>;
   timestamp?: string;
@@ -39,8 +39,11 @@ type Signed = {
 
 const orUndefined = <T>(value: T) => (value ? value : undefined);
 
-/** The signed fields, exactly as the SDK picks them. Fields outside this list aren't signed. */
-function signedFields(response: Signed): Record<string, Json | undefined> {
+/**
+ * The signed fields, exactly as the SDK picks them. Fields outside this list aren't signed, so the
+ * browser gate reads only these (unsigned appFees, confidentiality, insured, depositMode never count).
+ */
+export function signedQuoteFields(response: SignedQuoteResponse): Record<string, Json | undefined> {
   const r = response.quoteRequest;
   const q = response.quote;
   const request = {
@@ -88,13 +91,13 @@ function signedFields(response: Signed): Record<string, Json | undefined> {
 }
 
 /** Base58 of SHA-256 over the stable JSON. Its UTF-8 text is what 1Click signs. */
-export function oneClickQuoteHash(response: Signed): string {
-  const text = stableStringify(signedFields(response) as Json) as string;
+export function oneClickQuoteHash(response: SignedQuoteResponse): string {
+  const text = stableStringify(signedQuoteFields(response) as Json) as string;
   return base58.encode(sha256(new TextEncoder().encode(text)));
 }
 
 export function verifyQuoteSignature(
-  response: Signed,
+  response: SignedQuoteResponse,
   publicKey: string = ONECLICK_QUOTE_KEY.publicKey,
 ): boolean {
   try {

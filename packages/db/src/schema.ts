@@ -10,6 +10,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -31,7 +32,12 @@ export const modeEnum = pgEnum("mode", MODES);
 export const payRunStatusEnum = pgEnum("pay_run_status", PAY_RUN_STATUSES);
 export const attemptStatusEnum = pgEnum("attempt_status", ATTEMPT_STATUSES);
 export const failureReasonEnum = pgEnum("failure_reason", FAILURE_REASONS);
-export const membershipRoleEnum = pgEnum("membership_role", ["owner", "viewer", "accountant"]);
+export const membershipRoleEnum = pgEnum("membership_role", [
+  "owner",
+  "viewer",
+  "accountant",
+  "preparer",
+]);
 export const membershipStatusEnum = pgEnum("membership_status", ["active", "removed"]);
 export const preparedByEnum = pgEnum("prepared_by", ["agent", "user"]);
 export const payoutModeEnum = pgEnum("payout_mode", ["direct", "private"]);
@@ -58,13 +64,74 @@ const units = (name: string) => bigint(name, { mode: "bigint" });
 export const organizations = pgTable("organizations", {
   id: id(),
   name: text("name").notNull(),
+  // Display only (W6): an ISO 4217 code for the estimates shown beside USD, and the organisation's
+  // time zone. Neither is ever used in a money calculation or a signature.
+  displayCurrency: text("display_currency").notNull().default("USD"),
+  timeZone: text("time_zone").notNull().default("UTC"),
+  notifications: jsonb("notifications")
+    .notNull()
+    .default(sql`'{"payrollReady":true,"payoutSettled":true,"weeklySummary":false}'::jsonb`),
   createdAt: createdAt(),
 });
 
-export const users = pgTable("users", {
+export const users = pgTable(
+  "users",
+  {
+    id: id(),
+    // Null for an account made with an email only, until its wallet is linked by a signature (W6).
+    nearAccountId: text("near_account_id").unique(),
+    // Email login (W6): for sign-in, invites and notices. It carries no signing power.
+    email: text("email"),
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    // Argon2id PHC string. Never the wallet secret: the two are unrelated.
+    passwordHash: text("password_hash"),
+    failedLogins: integer("failed_logins").notNull().default(0),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("users_email_unique")
+      .on(sql`lower(${t.email})`)
+      .where(sql`${t.email} IS NOT NULL`),
+    check(
+      "users_has_login",
+      sql`${t.nearAccountId} IS NOT NULL OR (${t.email} IS NOT NULL AND ${t.passwordHash} IS NOT NULL)`,
+    ),
+  ],
+);
+
+/** Single-use, expiring tokens for email verification and password reset (only hashes are stored). */
+export const emailTokens = pgTable(
+  "email_tokens",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    purpose: text("purpose").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("email_tokens_user_id_idx").on(t.userId),
+    check("email_tokens_purpose_known", sql`${t.purpose} IN ('verify', 'reset')`),
+  ],
+);
+
+/**
+ * Every email the API would send. Delivery needs a provider the founder chooses (docs/DEPLOY.md);
+ * until then messages wait here, and tests and the demo read them from here.
+ */
+export const emailOutbox = pgTable("email_outbox", {
   id: id(),
-  nearAccountId: text("near_account_id").notNull().unique(),
+  toEmail: text("to_email").notNull(),
+  kind: text("kind").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
   createdAt: createdAt(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
 });
 
 const orgId = () =>
@@ -108,10 +175,14 @@ export const contractors = pgTable(
     orgId: orgId(),
     name: text("name").notNull(),
     email: text("email"),
+    // Display only (W6): the contractor's own estimate currency; null means the organisation's.
+    displayCurrency: text("display_currency"),
     terms: jsonb("terms").notNull(),
     // Null until a first destination is accepted. One active mode per contractor (rule 8).
     payoutMode: payoutModeEnum("payout_mode"),
     status: text("status").notNull(),
+    // The signed-in user an accepted invite linked to this contractor (D3, the portal).
+    userId: uuid("user_id"),
     createdAt: createdAt(),
   },
   (t) => [
@@ -270,10 +341,17 @@ export const payRuns = pgTable(
     approvedAt: moment("approved_at"),
     totalAmountUsdc: units("total_amount_usdc").notNull(),
     mode: modeEnum("mode").notNull(),
+    // Set when the scheduled-payroll job prepared this draft (D1): the payday it is for. One draft
+    // per org and payday, ever.
+    scheduledFor: date("scheduled_for"),
+    readyForReviewAt: moment("ready_for_review_at"),
     createdAt: createdAt(),
   },
   (t) => [
     index("pay_runs_org_id_idx").on(t.orgId),
+    uniqueIndex("pay_runs_org_scheduled_for_unique")
+      .on(t.orgId, t.scheduledFor)
+      .where(sql`${t.scheduledFor} IS NOT NULL`),
     unique("pay_runs_org_id_id_unique").on(t.orgId, t.id),
     foreignKey({
       name: "pay_runs_approver_is_member",
@@ -507,6 +585,42 @@ export const sessions1Click = pgTable("sessions_1click", {
   createdAt: createdAt(),
 });
 
+/**
+ * A contractor's own 1Click session (slice W6): opened by signing an empty intent with their wallet,
+ * so Veylo can read THEIR confidential balance. It can read; it cannot move anything. Requests are
+ * single-use and short-lived, like the treasury's.
+ */
+export const contractorSessionRequests = pgTable(
+  "contractor_session_requests",
+  {
+    id: id(),
+    orgId: orgId(),
+    contractorId: uuid("contractor_id").notNull(),
+    accountId: text("account_id").notNull(),
+    message: text("message").notNull(),
+    nonce: text("nonce").notNull().unique(),
+    recipient: text("recipient").notNull(),
+    expiresAt: moment("expires_at").notNull(),
+    usedAt: moment("used_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("contractor_session_requests_contractor_idx").on(t.orgId, t.contractorId)],
+);
+
+/** One per contractor. Tokens are encrypted with the org's data key, bound to this row and purpose. */
+export const sessions1ClickContractor = pgTable("sessions_1click_contractor", {
+  id: uuid("id").primaryKey(),
+  orgId: orgId(),
+  contractorId: uuid("contractor_id").notNull().unique(),
+  accountId: text("account_id").notNull(),
+  encryptedAccessToken: text("encrypted_access_token").notNull(),
+  encryptedRefreshToken: text("encrypted_refresh_token").notNull(),
+  accessExpiresAt: moment("access_expires_at").notNull(),
+  refreshExpiresAt: moment("refresh_expires_at").notNull(),
+  status: oneClickSessionStatusEnum("status").notNull(),
+  createdAt: createdAt(),
+});
+
 /** A generated payload awaiting the treasury's signature. Single-use; expires at the requested deadline. */
 export const signRequests = pgTable(
   "sign_requests",
@@ -580,4 +694,73 @@ export const auditLog = pgTable(
       sql`${t.orgId} IS NOT NULL OR ${t.action} LIKE 'auth.%'`,
     ),
   ],
+);
+
+// Slice W5 (D1, D3, D5).
+export const payrollSchedules = pgTable(
+  "payroll_schedules",
+  {
+    orgId: uuid("org_id")
+      .primaryKey()
+      .references(() => organizations.id),
+    kind: text("kind").notNull(),
+    dayOfMonth: integer("day_of_month"),
+    anchorDate: date("anchor_date"),
+    timeZone: text("time_zone").notNull(),
+    paused: boolean("paused").notNull().default(false),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("payroll_schedules_kind_known", sql`${t.kind} IN ('monthly', 'biweekly')`),
+    check(
+      "payroll_schedules_monthly_day",
+      sql`${t.kind} <> 'monthly' OR (${t.dayOfMonth} BETWEEN 1 AND 31 AND ${t.anchorDate} IS NULL)`,
+    ),
+    check(
+      "payroll_schedules_biweekly_anchor",
+      sql`${t.kind} <> 'biweekly' OR (${t.anchorDate} IS NOT NULL AND ${t.dayOfMonth} IS NULL)`,
+    ),
+  ],
+);
+
+export const contractorInvites = pgTable("contractor_invites", {
+  id: id(),
+  orgId: orgId(),
+  contractorId: uuid("contractor_id").notNull(),
+  // Only the hash is stored: the link itself is shown once, to the owner who made it.
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: moment("expires_at").notNull(),
+  acceptedAt: moment("accepted_at"),
+  acceptedBy: uuid("accepted_by"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: createdAt(),
+});
+
+export const addressChangeRequests = pgTable(
+  "address_change_requests",
+  {
+    id: id(),
+    orgId: orgId(),
+    contractorId: uuid("contractor_id").notNull(),
+    route: text("route").notNull(),
+    address: text("address").notNull(),
+    requestedBy: uuid("requested_by").notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    // The cooling period: the treasury can't approve the new address before this moment (D3).
+    appliesAfter: moment("applies_after").notNull(),
+    appliedAt: moment("applied_at"),
+    cancelledAt: moment("cancelled_at"),
+  },
+  (t) => [index("address_change_requests_contractor_idx").on(t.orgId, t.contractorId)],
+);
+
+export const itemAcknowledgements = pgTable(
+  "item_acknowledgements",
+  {
+    orgId: orgId(),
+    itemId: uuid("item_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.itemId, t.userId] })],
 );

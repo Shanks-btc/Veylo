@@ -312,7 +312,35 @@ export function createOneClickTreasuryClient(options: {
     };
   }
 
+  /**
+   * The reference price (USD per token) 1Click lists for an asset, as the decimal text it wrote
+   * (GET /v0/tokens, public). It only SIZES a NEAR payout request: the signed quote's own amounts
+   * decide, and gate C bounds them. Read from the response text, never through a float.
+   */
+  async function referencePrice(assetId: string): Promise<string> {
+    let text: string;
+    try {
+      const response = await options.fetch(`${base}/v0/tokens`, {
+        method: "GET",
+        headers: { "x-api-key": options.apiKey },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) throw new Error("status");
+      text = await response.text();
+    } catch {
+      throw new OneClickError("unavailable", "1Click did not give a price");
+    }
+    const at = text.indexOf(`"assetId":"${assetId}"`);
+    if (at < 0) throw new OneClickError("unexpected", "1Click lists no price for this asset");
+    const next = text.indexOf('"assetId":', at + 10);
+    const slice = text.slice(at, next < 0 ? undefined : next);
+    const m = /"price"\s*:\s*([0-9]+(?:\.[0-9]+)?)/.exec(slice);
+    if (!m?.[1]) throw new OneClickError("unexpected", "1Click lists no price for this asset");
+    return m[1];
+  }
+
   return {
+    referencePrice,
     createPayoutQuote: payoutQuote,
 
     /** Funding: from an external chain into the org's own treasury, and only there. */

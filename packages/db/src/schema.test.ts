@@ -322,11 +322,18 @@ describe("mode and tenancy", () => {
     );
     expect(result.rows.map((r) => r.table_name).sort()).toEqual(
       [
+        "address_change_requests",
         "audit_log",
         "auth_challenges",
+        "contractor_invites",
         "contractors",
+        "item_acknowledgements",
+        "payroll_schedules",
+        "email_tokens",
+        "email_outbox",
         "encumbrances",
         "memberships",
+        "contractor_session_requests",
         "organizations",
         "pay_run_items",
         "pay_runs",
@@ -338,6 +345,7 @@ describe("mode and tenancy", () => {
         "payout_destinations",
         "sessions",
         "sessions_1click",
+        "sessions_1click_contractor",
         "sign_requests",
         "treasuries",
         "treasury_events",

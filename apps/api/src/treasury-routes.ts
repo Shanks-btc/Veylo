@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isOwnerKey, validateAddress } from "@veylo/chains";
 import {
+  ENABLED_FUNDING_ORIGIN_IDS,
   getFundingOrigin,
   FUNDING_ORIGIN_IDS,
   TREASURY_ASSET_ID,
@@ -281,6 +282,9 @@ export async function treasuryRoutes(app: FastifyInstance, deps: Deps, guards: G
     const { session } = await guards.requireRole(request, orgId, OWNER_ONLY);
     const body = parse(fundingBody, request.body);
     limiter.check("funding-quote", orgId, session.userId);
+    const enabled = deps.config.enabledFundingOrigins ?? ENABLED_FUNDING_ORIGIN_IDS;
+    if (!enabled.includes(body.originRoute))
+      throw new AppError(400, "FUNDING_NOT_ENABLED", "This funding option isn't available yet.");
     const origin = getFundingOrigin(body.originRoute);
     const refund = validateAddress(origin.addressKind, body.refundAddress);
     if (!refund.ok) throw new AppError(400, "ADDRESS_INVALID", refund.message);
@@ -312,8 +316,13 @@ export async function treasuryRoutes(app: FastifyInstance, deps: Deps, guards: G
       mode: "live",
     });
     await audit(orgId, session.userId, "treasury.funding_quote", event.id, now);
-    const formatted =
-      (quote.raw.quote as { amountInFormatted?: string }).amountInFormatted ?? quote.amountIn;
+    const rawQuote = quote.raw.quote as {
+      amountInFormatted?: string;
+      amountOutFormatted?: string;
+      amountInUsd?: string;
+      amountOutUsd?: string;
+    };
+    const formatted = rawQuote.amountInFormatted ?? quote.amountIn;
     return reply.status(201).send({
       eventId: event.id,
       depositAddress: quote.depositAddress,
@@ -324,6 +333,17 @@ export async function treasuryRoutes(app: FastifyInstance, deps: Deps, guards: G
       network: origin.network,
       deadline: quote.deadline,
       minimumReceived: quote.minAmountOut,
+      originId: origin.id,
+      convertsToUsdc: origin.convertsToUsdc,
+      amountOut: quote.amountOut,
+      amountOutFormatted: rawQuote.amountOutFormatted ?? quote.amountOut,
+      // 1Click's own USD figures: unsigned, shown as "as reported by 1Click", never relied on.
+      amountInUsd: typeof rawQuote.amountInUsd === "string" ? rawQuote.amountInUsd : null,
+      amountOutUsd: typeof rawQuote.amountOutUsd === "string" ? rawQuote.amountOutUsd : null,
+      treasuryAccountId: treasury,
+      refundAddress: refund.normalized,
+      // The whole signed response: the browser checks 1Click's signature before it shows the address.
+      signedQuote: quote.raw,
       summary: `Send exactly ${formatted} ${origin.symbol} on ${origin.network} to ${quote.depositAddress} before ${quote.deadline}. This address is single-use. Any refund goes to ${refund.normalized}.`,
     });
   });

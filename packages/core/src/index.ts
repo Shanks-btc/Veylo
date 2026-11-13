@@ -10,3 +10,7 @@ export * from "./payee.js";
 export * from "./review.js";
 export * from "./settlement.js";
 export * from "./csv.js";
+export * from "./schedule.js";
+export * from "./email-templates.js";
+export * from "./fx.js";
+export * from "./near-payout.js";

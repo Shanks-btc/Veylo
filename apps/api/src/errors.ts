@@ -18,3 +18,7 @@ export const notFound = () => new AppError(404, "NOT_FOUND", "Not found");
 export const forbidden = () => new AppError(403, "FORBIDDEN", "Not allowed");
 export const invalidRequest = () => new AppError(400, "INVALID_REQUEST", "Invalid request");
 export const conflict = (code: string, message: string) => new AppError(409, code, message);
+
+/** A payout route outside the enabled scope (L46): disabled, or waiting on a spike. */
+export const routeDisabled = () =>
+  new AppError(400, "ROUTE_NOT_ENABLED", "This payout route isn't available. Use a NEAR route.");

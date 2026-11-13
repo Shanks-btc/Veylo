@@ -4,11 +4,13 @@ import {
   computeFee,
   isSafeMessageText,
   payeeStatus,
+  DISPLAY_CURRENCY_CODES,
   getPayoutRoute,
   money,
   PAYOUT_ROUTE_IDS,
   USDC,
   type PayoutRoute,
+  type PayoutRouteId,
 } from "@veylo/core";
 import {
   archiveContractor,
@@ -30,12 +32,13 @@ import {
 import { acceptanceQuote } from "@veylo/intents";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { parse, type Deps } from "./app.js";
-import { AppError, conflict, notFound } from "./errors.js";
+import { parse, routeEnabled, type Deps } from "./app.js";
+import { MAX_IMPORT_BYTES, parseContractorImport } from "./contractor-import.js";
+import { AppError, conflict, notFound, routeDisabled } from "./errors.js";
 import type { Guards } from "./guards.js";
 import { destinationPayable, loadPayeeContext, type PayeeContext } from "./payability.js";
 
-const OWNER_ONLY = ["owner"] as const;
+const WRITERS = ["owner", "preparer"] as const;
 const QUOTE_DEADLINE_MS = 10 * 60 * 1000;
 
 /** A rate is USDC smallest units, as text, so it can't become a float in JSON. */
@@ -52,7 +55,16 @@ const email = z.email().max(320);
 
 const createContractorBody = z.object({ name, email: email.optional(), terms }).strict();
 const patchContractorBody = z
-  .object({ name: name.optional(), email: email.nullable().optional(), terms: terms.optional() })
+  .object({
+    name: name.optional(),
+    email: email.nullable().optional(),
+    terms: terms.optional(),
+    // Display only (W6): an estimate currency beside USD, never used in any amount.
+    displayCurrency: z
+      .enum(DISPLAY_CURRENCY_CODES as [string, ...string[]])
+      .nullable()
+      .optional(),
+  })
   .strict()
   .refine((body) => Object.keys(body).length > 0);
 // `address` and `route` are all a destination takes. An address can never be patched.
@@ -61,6 +73,7 @@ const createDestinationBody = z
   .strict();
 
 const orgParams = z.object({ orgId: z.uuid() });
+const importBody = z.object({ csv: z.string().max(MAX_IMPORT_BYTES), save: z.boolean() }).strict();
 const contractorParams = z.object({ orgId: z.uuid(), contractorId: z.uuid() });
 const destinationParams = contractorParams.extend({ destinationId: z.uuid() });
 
@@ -169,9 +182,114 @@ export async function contractorRoutes(app: FastifyInstance, deps: Deps, guards:
     }
   }
 
+  /** Checks the address, asks 1Click to accept it (dry), saves it, and promotes it if accepted. */
+  async function addDestination(
+    orgId: string,
+    contractorId: string,
+    actor: string,
+    routeId: string,
+    rawAddress: string,
+    createdAt?: Date,
+  ) {
+    if (!routeEnabled(deps, routeId)) throw routeDisabled();
+    const route = getPayoutRoute(routeId as PayoutRouteId);
+    const address = validateAddress(route.addressKind, rawAddress);
+    if (!address.ok) throw new AppError(400, "ADDRESS_INVALID", address.message);
+    // Outside the transaction: never hold a database connection across a network call.
+    const check = await runCheck(orgId, route, address.normalized);
+    const now = deps.clock();
+    return deps.db.transaction(async (tx) => {
+      const row = await insertDestination(tx, orgId, contractorId, {
+        route: route.id,
+        chain: route.chain,
+        assetId: route.assetId,
+        payoutMode: route.payoutMode,
+        address: address.normalized,
+        ...check,
+        checkedAt: now,
+        ...(createdAt ? { createdAt } : {}),
+      });
+      await writeAudit(tx, {
+        orgId,
+        actor,
+        action: "destination.create",
+        entity: "payout_destination",
+        entityId: row.id,
+        at: now,
+      });
+      if (check.checkStatus === "accepted") await promote(tx, orgId, actor, row, now);
+      return row.id;
+    });
+  }
+
+  /**
+   * CSV import (C5): every row is checked, including live on NEAR, and shown with its problems
+   * before anything is saved. Saving is all or nothing for the file's rows; nobody it creates is
+   * payable until the treasury wallet approves their address.
+   */
+  app.post("/orgs/:orgId/contractors/import", async (request) => {
+    const { orgId } = parse(orgParams, request.params);
+    const { session } = await guards.requireRole(request, orgId, WRITERS);
+    const body = parse(importBody, request.body);
+    const parsed = parseContractorImport(body.csv);
+    if (parsed.fileProblem !== undefined)
+      throw new AppError(400, "IMPORT_FILE_INVALID", parsed.fileProblem);
+    const reports = parsed.reports;
+    const taken = new Set<string>();
+    for (const c of await listContractors(deps.db, orgId))
+      for (const d of await listDestinations(deps.db, orgId, c.id))
+        taken.add(d.address.toLowerCase());
+    for (const row of parsed.rows) {
+      const report = reports.find((r) => r.line === row.line) as (typeof reports)[number];
+      if (taken.has(row.account)) {
+        report.problems.push("this NEAR account is already a contractor's payout address");
+      } else {
+        try {
+          if (!(await deps.rpc.viewAccount(row.account)))
+            report.problems.push("this account doesn't exist on NEAR");
+        } catch {
+          // Fail closed: an account we couldn't look up isn't accepted.
+          report.problems.push("couldn't check this account on NEAR right now");
+        }
+      }
+      report.ok = report.problems.length === 0;
+    }
+    const allOk = reports.every((r) => r.ok);
+    let created = 0;
+    if (body.save && allOk) {
+      for (const row of parsed.rows) {
+        const contractor = await deps.db.transaction(async (tx) => {
+          const made = await insertContractor(tx, orgId, {
+            name: row.name,
+            email: row.email,
+            terms: {},
+          });
+          await writeAudit(tx, {
+            orgId,
+            actor: session.userId,
+            action: "contractor.import",
+            entity: "contractor",
+            entityId: made.id,
+            at: deps.clock(),
+          });
+          return made;
+        });
+        await addDestination(
+          orgId,
+          contractor.id,
+          session.userId,
+          row.route === "private" ? "usdc-near-confidential" : "usdc-near",
+          row.account,
+        );
+        created += 1;
+      }
+    }
+    return { rows: reports, saved: body.save && allOk, created };
+  });
+
   app.post("/orgs/:orgId/contractors", async (request, reply) => {
     const { orgId } = parse(orgParams, request.params);
-    const { session } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session } = await guards.requireRole(request, orgId, WRITERS);
     const body = parse(createContractorBody, request.body);
     const contractor = await deps.db.transaction(async (tx) => {
       const created = await insertContractor(tx, orgId, { ...body, email: body.email ?? null });
@@ -188,21 +306,34 @@ export async function contractorRoutes(app: FastifyInstance, deps: Deps, guards:
     return reply.status(201).send(contractor);
   });
 
+  /**
+   * An accountant (or viewer) sees a contractor's name and route, nothing else personal (D2): no
+   * email, no pay terms, no payout address.
+   */
+  const seesPii = (role: string) => role === "owner" || role === "preparer";
+  const redactContractor = <T extends { email: string | null; terms: unknown }>(c: T): T => ({
+    ...c,
+    email: null,
+    terms: {},
+  });
+
   app.get("/orgs/:orgId/contractors", async (request) => {
     const { orgId } = parse(orgParams, request.params);
-    await guards.requireMember(request, orgId);
-    return { contractors: await listContractors(deps.db, orgId) };
+    const { membership } = await guards.requireMember(request, orgId);
+    const rows = await listContractors(deps.db, orgId);
+    return { contractors: seesPii(membership.role) ? rows : rows.map(redactContractor) };
   });
 
   app.get("/orgs/:orgId/contractors/:contractorId", async (request) => {
     const { orgId, contractorId } = parse(contractorParams, request.params);
-    await guards.requireMember(request, orgId);
-    return requireContractor(deps.db, orgId, contractorId);
+    const { membership } = await guards.requireMember(request, orgId);
+    const row = await requireContractor(deps.db, orgId, contractorId);
+    return seesPii(membership.role) ? row : redactContractor(row);
   });
 
   app.patch("/orgs/:orgId/contractors/:contractorId", async (request) => {
     const { orgId, contractorId } = parse(contractorParams, request.params);
-    const { session } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session } = await guards.requireRole(request, orgId, WRITERS);
     const body = parse(patchContractorBody, request.body);
     requireNotArchived(await requireContractor(deps.db, orgId, contractorId));
     return deps.db.transaction(async (tx) => {
@@ -221,7 +352,7 @@ export async function contractorRoutes(app: FastifyInstance, deps: Deps, guards:
 
   app.post("/orgs/:orgId/contractors/:contractorId/archive", async (request) => {
     const { orgId, contractorId } = parse(contractorParams, request.params);
-    const { session } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session } = await guards.requireRole(request, orgId, WRITERS);
     requireNotArchived(await requireContractor(deps.db, orgId, contractorId));
     return deps.db.transaction(async (tx) => {
       const archived = await archiveContractor(tx, orgId, contractorId);
@@ -239,47 +370,25 @@ export async function contractorRoutes(app: FastifyInstance, deps: Deps, guards:
 
   app.get("/orgs/:orgId/contractors/:contractorId/destinations", async (request) => {
     const { orgId, contractorId } = parse(contractorParams, request.params);
-    await guards.requireMember(request, orgId);
+    const { membership } = await guards.requireMember(request, orgId);
     await requireContractor(deps.db, orgId, contractorId);
     const rows = await listDestinations(deps.db, orgId, contractorId);
     const ctx = await payeeContext(orgId, contractorId, deps.clock());
-    return { destinations: rows.map((row) => present(row, rows, ctx)) };
+    const shown = rows.map((row) => present(row, rows, ctx));
+    return {
+      destinations: seesPii(membership.role)
+        ? shown
+        : shown.map((d) => ({ ...d, address: "", warnings: [] })),
+    };
   });
 
   app.post("/orgs/:orgId/contractors/:contractorId/destinations", async (request, reply) => {
     const { orgId, contractorId } = parse(contractorParams, request.params);
-    const { session } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session } = await guards.requireRole(request, orgId, WRITERS);
     const body = parse(createDestinationBody, request.body);
     requireNotArchived(await requireContractor(deps.db, orgId, contractorId));
 
-    const route = getPayoutRoute(body.route);
-    const address = validateAddress(route.addressKind, body.address);
-    if (!address.ok) throw new AppError(400, "ADDRESS_INVALID", address.message);
-
-    // Outside the transaction: never hold a database connection across a network call.
-    const check = await runCheck(orgId, route, address.normalized);
-    const now = deps.clock();
-    const id = await deps.db.transaction(async (tx) => {
-      const row = await insertDestination(tx, orgId, contractorId, {
-        route: route.id,
-        chain: route.chain,
-        assetId: route.assetId,
-        payoutMode: route.payoutMode,
-        address: address.normalized,
-        ...check,
-        checkedAt: now,
-      });
-      await writeAudit(tx, {
-        orgId,
-        actor: session.userId,
-        action: "destination.create",
-        entity: "payout_destination",
-        entityId: row.id,
-        at: now,
-      });
-      if (check.checkStatus === "accepted") await promote(tx, orgId, session.userId, row, now);
-      return row.id;
-    });
+    const id = await addDestination(orgId, contractorId, session.userId, body.route, body.address);
     const rows = await listDestinations(deps.db, orgId, contractorId);
     const ctx = await payeeContext(orgId, contractorId, deps.clock());
     return reply.status(201).send(present(rows.find((r) => r.id === id) as Row, rows, ctx));
@@ -289,7 +398,7 @@ export async function contractorRoutes(app: FastifyInstance, deps: Deps, guards:
     "/orgs/:orgId/contractors/:contractorId/destinations/:destinationId/recheck",
     async (request) => {
       const { orgId, contractorId, destinationId } = parse(destinationParams, request.params);
-      const { session } = await guards.requireRole(request, orgId, OWNER_ONLY);
+      const { session } = await guards.requireRole(request, orgId, WRITERS);
       requireNotArchived(await requireContractor(deps.db, orgId, contractorId));
       const current = await getDestination(deps.db, orgId, contractorId, destinationId);
       if (!current) throw notFound();
@@ -327,4 +436,5 @@ export async function contractorRoutes(app: FastifyInstance, deps: Deps, guards:
       return present(rows.find((r) => r.id === destinationId) as Row, rows, ctx);
     },
   );
+  return { addDestination };
 }

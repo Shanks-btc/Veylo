@@ -3,12 +3,16 @@ import {
   createFirstAttempt,
   createRetryAttempt,
   canRetry,
+  checkNearSpend,
   DEFAULT_DEVIATION_PERCENT,
+  formatFixed,
   getPayoutRoute,
   hasBlockingFlag,
+  impliedRateText,
   InvalidTransitionError,
   isSafeMessageText,
   money,
+  nearAmountForUsd,
   reviewFlags,
   transitionAttempt,
   transitionPayRun,
@@ -20,6 +24,8 @@ import {
   type ReviewFlag,
 } from "@veylo/core";
 import {
+  acknowledgeItem,
+  clearAcknowledgements,
   deletePayRunItem,
   getActiveMembership,
   getPayRun,
@@ -43,7 +49,7 @@ import {
 import { OneClickError, QuoteGuardError, type PayoutQuote } from "@veylo/intents";
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { z } from "zod";
-import { parse, type Deps } from "./app.js";
+import { parse, routeEnabled, type Deps } from "./app.js";
 import { AppError, conflict, notFound } from "./errors.js";
 import type { Guards } from "./guards.js";
 import { createSessionAccess } from "./oneclick-session.js";
@@ -51,6 +57,8 @@ import { destinationPayable, loadPayeeContext, signedPayee } from "./payability.
 import { createTreasuryLimiter } from "./rate-limit.js";
 
 const OWNER_ONLY = ["owner"] as const;
+/** Owners and preparers draft pay runs; only the owner reviews, approves, quotes and signs (D2). */
+const WRITERS = ["owner", "preparer"] as const;
 
 const runParams = z.object({ orgId: z.uuid(), payRunId: z.uuid() });
 const itemParams = runParams.extend({ itemId: z.uuid() });
@@ -83,6 +91,10 @@ type FeePreview = {
   /** minAmountIn minus the payout: the fee on the L9 basis. */
   fee: string;
   asOf: string;
+  /** What the contractor receives (W6): NEAR is sized from the USD amount at quote time. */
+  asset?: "USDC" | "NEAR";
+  /** USDC per NEAR, from the quote's own amounts; null for a USDC payout. */
+  rate?: string | null;
 };
 
 /**
@@ -159,7 +171,8 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
       ? destinationPayable(ctx, destination)
       : { payable: false, payableReason: "no_active_destination" as const };
     const lastPaid = await lastPaidForContractor(deps.db, orgId, item.contractorId, item.payRunId);
-    return { ctx, destination, payable, lastPaid };
+    const replacedAnother = destinations.some((d) => d.status === "superseded");
+    return { ctx, destination, payable, lastPaid, replacedAnother };
   }
 
   function flagsFor(
@@ -174,8 +187,11 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
             id: a.destination.id,
             enteredBy: a.destination.enteredBy,
             contractorConfirmedAt: a.destination.contractorConfirmedAt,
+            createdAt: a.destination.createdAt,
+            replacedAnother: a.replacedAnother,
           }
         : null,
+      now: deps.clock(),
       payable: a.payable,
       lastPaid: a.lastPaid,
       amount,
@@ -184,16 +200,29 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
     });
   }
 
-  /** The quote the treasury would sign for this item. Dry for previews and simulated runs. */
-  function quoteFor(
+  /**
+   * The quote the treasury would sign for this item. Dry for previews and simulated runs.
+   * `amount` is the item's USD amount (6 decimals). A USDC route delivers exactly that. A NEAR route
+   * (W6) delivers an exact NEAR amount sized from 1Click's reference price (EXACT_OUTPUT), and the
+   * treasury's spend is bounded against the USD amount: at least it, at most it plus the fee ceiling.
+   */
+  async function quoteFor(
     a: Awaited<ReturnType<typeof assess>>,
     amount: bigint,
     mode: "live" | "simulated",
   ): Promise<PayoutQuote> {
     const payee = signedPayee(a.ctx, (a.destination as { id: string }).id);
     if (!payee) throw new QuoteGuardError("no owner-signed payee for this destination");
+    if (!routeEnabled(deps, payee.routeId))
+      throw new QuoteGuardError("this payout route isn't enabled");
+    const route = getPayoutRoute(payee.routeId as PayoutRouteId);
+    let deliver = amount;
+    if (route.asset === "NEAR") {
+      const price = await deps.oneclickTreasury.referencePrice(route.assetId);
+      deliver = nearAmountForUsd(amount, price);
+    }
     const now = deps.clock();
-    return deps.oneclickTreasury.createPayoutQuote({
+    const quote = await deps.oneclickTreasury.createPayoutQuote({
       mode,
       treasuryAccountId: a.ctx.treasuryAccountId,
       refundTo: a.ctx.treasuryAccountId,
@@ -206,16 +235,43 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
       recipientType: getPayoutRoute((a.destination as { route: string }).route as PayoutRouteId)
         .recipientType,
       destinationAsset: (a.destination as { assetId: string }).assetId,
-      amount: amount.toString(),
-      expectedAmount: amount.toString(),
+      amount: deliver.toString(),
+      expectedAmount: deliver.toString(),
       now,
       deadline: new Date(now.getTime() + deadlineMinutes * 60_000),
       maxDeadlineMinutes: deadlineMinutes,
     });
+    if (route.asset === "NEAR") {
+      const spend = checkNearSpend(BigInt(quote.amountIn), amount);
+      if (!spend.ok) throw new QuoteGuardError(spend.reason);
+    }
+    return quote;
+  }
+
+  /** What the review shows for a quote: the fee, and for NEAR the NEAR amount and the rate. */
+  function previewOf(q: PayoutQuote, amount: bigint, routeId: string) {
+    const route = getPayoutRoute(routeId as PayoutRouteId);
+    const near = route.asset === "NEAR";
+    return {
+      amountIn: q.amountIn,
+      minAmountIn: q.minAmountIn,
+      amountOut: near ? formatFixed(BigInt(q.amountOut), 24) : q.amountOut,
+      deliveryFee: q.withdrawFee,
+      fee: (BigInt(q.minAmountIn) - amount).toString(),
+      asOf: deps.clock().toISOString(),
+      asset: route.asset,
+      rate: near ? (impliedRateText(BigInt(q.amountIn), BigInt(q.amountOut)) ?? null) : null,
+    };
   }
 
   async function review(log: FastifyBaseLogger, orgId: string, payRunId: string) {
     const items = await listPayRunItems(deps.db, orgId, payRunId);
+    // The warnings are recomputed below, so earlier "I've checked this" ticks no longer cover them.
+    await clearAcknowledgements(
+      deps.db,
+      orgId,
+      items.map((i) => i.id),
+    );
     for (const item of items) {
       const a = await assess(orgId, item);
       let feePreview: FeePreview | null = null;
@@ -223,14 +279,7 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
       if (a.payable.payable) {
         try {
           const q = await quoteFor(a, item.amountUsdc, "simulated");
-          feePreview = {
-            amountIn: q.amountIn,
-            minAmountIn: q.minAmountIn,
-            amountOut: q.amountOut,
-            deliveryFee: q.withdrawFee,
-            fee: (BigInt(q.minAmountIn) - item.amountUsdc).toString(),
-            asOf: deps.clock().toISOString(),
-          };
+          feePreview = previewOf(q, item.amountUsdc, (a.destination as { route: string }).route);
         } catch (err) {
           log.warn({ err }, "fee preview failed");
           feePreviewFailed = true;
@@ -322,7 +371,7 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
 
   app.post("/orgs/:orgId/pay-runs", async (request, reply) => {
     const { orgId } = parse(orgParams, request.params);
-    const { session: s } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session: s } = await guards.requireRole(request, orgId, WRITERS);
     const body = parse(createBody, request.body);
     const run = await insertPayRun(deps.db, { orgId, period: body.period, mode: body.mode });
     await audit(orgId, s.userId, "pay_run.draft", run.id);
@@ -341,6 +390,10 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
         mode: r.mode,
         simulated: r.mode === "simulated",
         totalAmount: r.totalAmountUsdc.toString(),
+        // A scheduled draft waiting for the owner (D1): the banner on the treasury home.
+        scheduledFor: r.scheduledFor,
+        readyForReview:
+          r.readyForReviewAt !== null && ["Draft", "Prepared", "InReview"].includes(r.status),
       })),
     };
   });
@@ -353,7 +406,7 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
 
   app.post("/orgs/:orgId/pay-runs/:payRunId/items", async (request, reply) => {
     const { orgId, payRunId } = parse(runParams, request.params);
-    const { session: s } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session: s } = await guards.requireRole(request, orgId, WRITERS);
     const body = parse(itemBody, request.body);
     const run = await requireRun(orgId, payRunId);
     if (run.status !== "Draft") throw wrongStatus(run.status);
@@ -384,7 +437,7 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
 
   app.patch("/orgs/:orgId/pay-runs/:payRunId/items/:itemId", async (request) => {
     const { orgId, payRunId, itemId } = parse(itemParams, request.params);
-    const { session: s } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session: s } = await guards.requireRole(request, orgId, WRITERS);
     const body = parse(patchItemBody, request.body);
     const run = await requireRun(orgId, payRunId);
     if (run.status !== "Draft") throw wrongStatus(run.status);
@@ -413,7 +466,7 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
 
   app.delete("/orgs/:orgId/pay-runs/:payRunId/items/:itemId", async (request) => {
     const { orgId, payRunId, itemId } = parse(itemParams, request.params);
-    const { session: s } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session: s } = await guards.requireRole(request, orgId, WRITERS);
     const run = await requireRun(orgId, payRunId);
     if (run.status !== "Draft") throw wrongStatus(run.status);
     await deps.db.transaction(async (tx) => {
@@ -431,9 +484,23 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
     return { ok: true };
   });
 
+  /** The owner has read this item's warnings (D5). Signing a warned item needs this first. */
+  app.post("/orgs/:orgId/pay-runs/:payRunId/items/:itemId/acknowledge", async (request) => {
+    const { orgId, payRunId, itemId } = parse(
+      z.object({ orgId: z.uuid(), payRunId: z.uuid(), itemId: z.uuid() }),
+      request.params,
+    );
+    const { session: s } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const item = await getPayRunItem(deps.db, orgId, payRunId, itemId);
+    if (!item) throw notFound();
+    await acknowledgeItem(deps.db, orgId, itemId, s.userId);
+    await audit(orgId, s.userId, "pay_run_item.acknowledge", itemId);
+    return { ok: true as const };
+  });
+
   app.post("/orgs/:orgId/pay-runs/:payRunId/prepare", async (request) => {
     const { orgId, payRunId } = parse(runParams, request.params);
-    const { session: s } = await guards.requireRole(request, orgId, OWNER_ONLY);
+    const { session: s } = await guards.requireRole(request, orgId, WRITERS);
     const run = await requireRun(orgId, payRunId);
     if (run.status !== "Draft") throw wrongStatus(run.status);
     if ((await listPayRunItems(deps.db, orgId, payRunId)).length === 0) {
@@ -620,6 +687,15 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
           fees: {
             withdrawFee: q.withdrawFee,
             fee: (BigInt(q.minAmountIn) - item.amountUsdc).toString(),
+            // For a NEAR payout the delivered amount and the rate, from the signed quote (W6).
+            ...(getPayoutRoute((a.destination as { route: string }).route as PayoutRouteId)
+              .asset === "NEAR"
+              ? {
+                  asset: "NEAR",
+                  deliveredYocto: q.amountOut,
+                  rate: impliedRateText(BigInt(q.amountIn), BigInt(q.amountOut)),
+                }
+              : {}),
           },
         });
       } catch (err) {

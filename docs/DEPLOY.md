@@ -19,17 +19,24 @@ not confirmed from a fetched page is marked **(unverified)**.
 8. Domains: same-site web and API (L23)
 9. Not deployed yet
 10. Checklist for each deploy
+11. Local demo for review (`pnpm dev:web`)
+12. Wallet bridge (`wallet.<domain>`, L44)
+13. Real-wallet test on your computer (`pnpm dev:wallet`)
+14. Hosted demo: services, checklist and variables per service
+15. The 1Click partner key
+16. Email delivery (not built yet)
+17. Exchange rates for local-currency estimates
 
 ## 1. Services
 
-| Service             | Host    | Runs                                                      | Public                                               |
-| ------------------- | ------- | --------------------------------------------------------- | ---------------------------------------------------- |
-| `api`               | Railway | `node apps/api/dist/bin/server.js`                        | Yes, only through Railway's proxy, on the API domain |
-| `worker:settlement` | Railway | `node apps/api/dist/bin/worker.js`                        | No. It opens no port.                                |
-| Postgres            | Railway | Postgres 17 (CI tests 17.11)                              | No. Private network only.                            |
-| `web`               | Vercel  | Not built yet (UI slices await Phase 4 design references) | Yes, later                                           |
+| Service             | Host    | Runs                                                             | Public                                               |
+| ------------------- | ------- | ---------------------------------------------------------------- | ---------------------------------------------------- |
+| `api`               | Railway | `node apps/api/dist/bin/server.js`                               | Yes, only through Railway's proxy, on the API domain |
+| `worker:settlement` | Railway | `node apps/api/dist/bin/worker.js`                               | No. It opens no port.                                |
+| Postgres            | Railway | Postgres 17 (CI tests 17.11)                                     | No. Private network only.                            |
+| `web`               | Vercel  | The static app and a separate wallet bridge (sections 12 and 14) | Yes                                                  |
 
-The agents worker is not deployed (section 9).
+The agents worker is not deployed: agents are out of scope (L46, section 9).
 
 ## 2. Build and start commands
 
@@ -97,16 +104,16 @@ keeps the session key to decrypt the signed payloads it resubmits (L36), and nev
 | -------------- | ------------------------------- | -------- | ------------------------------------------ |
 | `DATABASE_URL` | **Secret** (holds the password) | Yes      | The only variable the migration step reads |
 
-### `worker:agents` (not deployed until slice 8)
+### `worker:agents` (out of scope, L46: never deployed)
 
-| Name                   | Secret                          | Required | Notes                                              |
-| ---------------------- | ------------------------------- | -------- | -------------------------------------------------- |
-| `DATABASE_URL`         | **Secret** (holds the password) | Yes      |                                                    |
-| `ONECLICK_PARTNER_KEY` | **Secret**                      | Yes      |                                                    |
-| `NEARAI_API_KEY`       | **Secret**                      | Yes      | NEAR AI Cloud key                                  |
-| `AGENT_KEY_MASTER_KEY` | **Secret**                      | Yes      | Agent keys only. Never on any other service (L31). |
-| `NODE_ENV`             | No                              | Yes      | `production`                                       |
-| `LOG_LEVEL`            | No                              | Yes      | `info`                                             |
+| Name                   | Secret                          | Required | Notes                                                                         |
+| ---------------------- | ------------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `DATABASE_URL`         | **Secret** (holds the password) | Yes      |                                                                               |
+| `ONECLICK_PARTNER_KEY` | **Secret**                      | Yes      |                                                                               |
+| `NEARAI_API_KEY`       | **Secret**                      | Yes      | NEAR AI Cloud key                                                             |
+| `AGENT_KEY_MASTER_KEY` | **Secret**                      | Unused   | Unused while agents are out of scope (L46). Never on any other service (L31). |
+| `NODE_ENV`             | No                              | Yes      | `production`                                                                  |
+| `LOG_LEVEL`            | No                              | Yes      | `info`                                                                        |
 
 ### Never set
 
@@ -244,10 +251,10 @@ founder's choice and isn't made yet (open action item).
 
 ## 9. Not deployed yet
 
-- **Agents worker** (`node apps/api/dist/bin/worker-agents.js`): not deployed until slice 8. It has no
+- **Agents worker** (`node apps/api/dist/bin/worker-agents.js`): out of scope (L46), never deployed. It has no
   jobs; it checks migrations and exits. Its variables are in section 3, and it never gets
   `SESSION_ENCRYPTION_KEY` (L31, L36).
-- **Web on Vercel**: later, after the UI slices.
+- **Web and wallet bridge on Vercel**: built (sections 12 and 14), not deployed yet. They wait for the founder to say go.
 
 ## 10. Checklist for each deploy
 
@@ -260,3 +267,178 @@ founder's choice and isn't made yet (open action item).
 7. `LOG_CLIENT_IP` is unset or `false`, except during a section 7 check.
 8. On the first deploy, or after a proxy or domain change: section 7 is done and recorded.
 9. No secret appears in any log or in this repository.
+
+## 11. Local demo for review (`pnpm dev:web`)
+
+This runs the web app on your computer with made-up data. You can click through the landing page and all 12 app screens without the API, a database or a wallet. It is not a deploy, and it is never used in production.
+
+1. Install once: `pnpm install`.
+2. From the repository root, run `pnpm dev:web`.
+3. Open http://localhost:3000 for the landing page, and http://localhost:3000/app for the app.
+
+What to expect:
+
+- Every page shows a **Demo data** banner. The people and amounts are made up. They are the same test data the browser checks use (`apps/web/scripts/demo-data.mjs`).
+- The demo API runs at http://localhost:4100 and answers reads only. Saving, approving or signing returns "The demo is read-only".
+- Wallet buttons don't connect. The demo runs no wallet bridge (section 12).
+- The image step needs `design/images/LICENSES.md` naming every photo. Without it, `pnpm dev:web` stops and says so.
+- Stop it with Ctrl+C.
+
+## 12. Wallet bridge (`wallet.<domain>`, L44)
+
+The wallet code runs on its own origin, so the app keeps its strict CSP. The app frames a bridge page and talks to it only by postMessage, with exact origin checks on both sides. The app verifies every signature, key and account itself, whichever wallet signed; the bridge decides nothing and can't reach the Veylo API.
+
+There is one page for each enabled external wallet, each with its own policy, and one page for the Veylo wallet:
+
+| Item        | Value                                                                                                                                                                                                                                               |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Origin      | Its own subdomain, e.g. `wallet.veylo.app`. Never the app or API origin.                                                                                                                                                                            |
+| Host        | Vercel, a separate project from the web app (static files only).                                                                                                                                                                                    |
+| Build       | `BRIDGE_APP_ORIGIN=https://app.<domain> NEXT_PUBLIC_NEAR_RPC_URL=<rpc> NEXT_PUBLIC_API_ORIGIN=https://api.<domain> node apps/web/scripts/build-bridge.mjs`                                                                                          |
+| Output      | `apps/web/out-bridge/`: `w/<wallet id>/index.html` (one per enabled wallet), `embedded/index.html` (the Veylo wallet), `main.js`, `embedded.js`, `wallets/` (the SHA-256-pinned executors), `wallet-icons/`, `vercel.json` (headers for every page) |
+| App setting | `NEXT_PUBLIC_WALLET_BRIDGE_ORIGIN=https://wallet.<domain>` on the web app build                                                                                                                                                                     |
+
+`NEXT_PUBLIC_API_ORIGIN` is read by the bridge build only to refuse a build whose CSP would reach the API.
+
+**An external wallet's page** (`/w/<id>/`; policy from `apps/web/scripts/bridge-csp.mjs`, hosts from `apps/web/src/wallet/wallets.lock.json` and the review next to it):
+
+- `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'`, because the wallet's sandboxed executor inherits this page's policy;
+- `connect-src` the wallet's reviewed hosts and the NEAR RPC origin, never the API; `img-src` and `frame-src` likewise only what that wallet's review lists;
+- `frame-ancestors https://app.<domain>` (header only), so only the app can frame it;
+- `default-src 'none'`, `object-src 'none'`, `base-uri 'none'`, `form-action 'none'`.
+
+The executors are served from this origin under a name that carries their SHA-256. A test and `pnpm verify` recompute each hash; a changed executor is a reviewed change (`pnpm wallets:refresh`, which writes nothing without the founder's approval). Which wallets are enabled, and why the others are not, is in [WALLETS.md](WALLETS.md).
+
+**The Veylo wallet page** (`/embedded/`): `script-src 'self'` and `connect-src 'none'`, so it can't make a network request of any kind; the key is made and kept on this origin and never leaves it. Its `Permissions-Policy` allows passkeys (`publickey-credentials-create=(self)`, `publickey-credentials-get=(self)`) on this page only. The web app's WebAuthn relying-party id is this wallet origin, so the passkey belongs to the wallet origin, not the app.
+
+Check after each deploy:
+
+1. Open `https://wallet.<domain>/` directly. It says "This page only works inside the Veylo app".
+2. The response headers of `/w/<id>/` and `/embedded/` include their policies above, with `frame-ancestors` naming only the app origin.
+3. In the app, sign in with the Veylo wallet and with one external wallet. The browser console shows no CSP errors on the app origin.
+4. `pnpm verify` passes its web-build step: every enabled wallet has a page with the reviewed policy and a pinned executor, and the app's own policy names no wallet host.
+
+## 13. Real-wallet test on your computer (`pnpm dev:wallet`)
+
+This is the test to do before anything is deployed. It runs the real app, the real wallet bridge and the real API against your local database, so you can connect your Meteor wallet and sign in. Nothing is deployed, and no payout is quoted, signed or sent unless you do it yourself in the app.
+
+| Part   | Where                 | What                                                          |
+| ------ | --------------------- | ------------------------------------------------------------- |
+| App    | http://localhost:3000 | The production build of the web app, with its real strict CSP |
+| Bridge | http://127.0.0.1:3001 | The wallet bridge on a different origin, with its own CSP     |
+| API    | http://localhost:4000 | The real API, on your local database (not demo data)          |
+
+Steps:
+
+1. Start a local Postgres 17 and create an empty database.
+2. Put its connection URL in a `.env` file at the repository root as `DATABASE_URL=` (see `.env.example`), together with `ONECLICK_PARTNER_KEY=` and `SESSION_ENCRYPTION_KEY=`. Never commit `.env`.
+3. `pnpm install`, then `pnpm build` and `pnpm db:migrate` to apply the migrations to that database.
+4. Run `pnpm dev:wallet`. It builds the API, the app and the bridge, then serves them.
+5. Open http://localhost:3000, click **Connect NEAR wallet**, and approve the sign-in in Meteor.
+
+How it stays local:
+
+- The two local origins are named exactly in the app CSP, the bridge CSP and both postMessage origin checks, and nowhere else.
+- The build scripts accept a local origin only when `pnpm dev:wallet` asks for it (`VEYLO_LOCAL_WALLET_TEST=1`). The output goes to `apps/web/out-local` and `apps/web/out-bridge`, never to `out/`, so a production build cannot carry a local origin. `pnpm verify` checks this, and `apps/web/src/csp.test.ts` tests it.
+- It stops with a message, and starts nothing, if `DATABASE_URL` is missing. If the API stops, the whole command stops.
+- Stop it with Ctrl+C.
+
+## 14. Hosted demo: services, checklist and variables per service
+
+**Keep the hosted demo up until at least 2026-11-25.** NEAR HACKATHON judging starts 2026-11-16, and the organisers answer to Q-012 is that a working demo must stay available to 2026-11-18 and, ideally, to 2026-11-25. If a host would take it down earlier (a trial ending, a free-tier limit), move it before then. The hosted demo runs on the services below. It is a deploy, so nothing in this section has been done: it waits for the founder to say go.
+
+| Service             | Host    | Runs                                                    | Needs                                    |
+| ------------------- | ------- | ------------------------------------------------------- | ---------------------------------------- |
+| `web`               | Vercel  | The static app (`apps/web/out/`)                        | The API origin and the bridge origin     |
+| `wallet bridge`     | Vercel  | The static bridge (`apps/web/out-bridge/`), own project | The app origin                           |
+| `api`               | Railway | `pnpm start`                                            | Postgres, the 1Click key, the web origin |
+| `worker:settlement` | Railway | `pnpm worker:settlement`                                | The same Postgres and keys as `api`      |
+| Postgres            | Railway | Postgres 17                                             | Private network only                     |
+
+### Before the first deploy
+
+1. `design/images/LICENSES.md` exists and names every photo (the web build stops without it).
+2. `pnpm install --frozen-lockfile`, then `pnpm verify` passes from a clean install.
+3. `pnpm demo` passes on the machine that builds.
+4. The Postgres job passes: `pnpm build`, `pnpm db:migrate`, `pnpm test:pg`.
+5. The domains are set up as in section 8: the web app, the API and the bridge each have their own origin, and the web app and API are same-site.
+6. Section 7 (proxy check) is planned for the first deploy.
+7. Every variable below is set on its service, and no secret is in this repository or in a log.
+8. `pnpm dev:wallet` (section 13) has been done once by the founder, with Meteor, against a local database.
+9. The founder has approved the deploy. Nothing here deploys itself.
+
+### Variables per service (names only)
+
+**`api`** and **`worker:settlement`**: the tables in section 3. The worker prepares scheduled drafts (it never quotes, signs or submits), so it needs no extra variable. The reminder email hook is switched off in code and has no variable.
+
+**`migrate`** (pre-deploy): `DATABASE_URL`. Section 3.
+
+**`web`** (set on the Vercel project; build-time, public by design, never a secret):
+
+| Name                                        | Required | Notes                                                                                                                                                |
+| ------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_ORIGIN`                    | Yes      | The API origin, no path (section 8)                                                                                                                  |
+| `NEXT_PUBLIC_WALLET_BRIDGE_ORIGIN`          | Yes      | The bridge origin, e.g. `https://wallet.<domain>`. Never the API origin.                                                                             |
+| `NEXT_PUBLIC_AUTH_RECIPIENT`                | Yes      | Same value as `AUTH_RECIPIENT` on `api`                                                                                                              |
+| `NEXT_PUBLIC_NEAR_RPC_URL`                  | No       | Default `https://rpc.fastnear.com`                                                                                                                   |
+| `NEXT_PUBLIC_NEAR_ARCHIVAL_RPC_URL`         | No       | Default `https://archival-rpc.mainnet.fastnear.com`. Read-only, for the proof and verify pages.                                                      |
+| `NEXT_PUBLIC_PAYOUT_QUOTE_DEADLINE_MINUTES` | No       | Default 15. Same value as `PAYOUT_QUOTE_DEADLINE_MINUTES` on `api`.                                                                                  |
+| `NEXT_PUBLIC_SITE_ORIGIN`                   | Yes      | The public site origin, for page metadata                                                                                                            |
+| `NEXT_PUBLIC_DEMO`                          | No       | `1` only for the in-browser demo build (`build:demo`). Leave it unset on the real app: `pnpm verify` fails a production build that carries the demo. |
+
+**`wallet bridge`** (build-time variables on its own Vercel project):
+
+| Name                       | Required | Notes                                                                        |
+| -------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `BRIDGE_APP_ORIGIN`        | Yes      | The web app origin: the only origin allowed to frame the bridge              |
+| `NEXT_PUBLIC_API_ORIGIN`   | Yes      | Read only to refuse a build whose CSP would reach the API (section 12)       |
+| `NEXT_PUBLIC_NEAR_RPC_URL` | No       | Default `https://rpc.fastnear.com`                                           |
+| `BRIDGE_CONNECT_ORIGINS`   | No       | Extra wallet hosts for `connect-src`. Leave unset unless a wallet needs one. |
+| `BRIDGE_IMG_ORIGINS`       | No       | Extra image hosts. Leave unset unless a wallet needs one.                    |
+
+**Postgres:** no variables of its own. Railway gives `api`, `worker:settlement` and `migrate` the private URL as `DATABASE_URL` (section 3).
+
+### After each deploy
+
+Run the section 10 checklist and the section 12 bridge checks. Then open the hosted demo link, go through the six rows of the README Judge quickstart, and note the date. Do this again on 2026-11-16, when judging starts, and on 2026-11-25.
+
+## 15. The 1Click partner key (`ONECLICK_PARTNER_KEY`)
+
+Veylo quotes and settles every payout and every funding conversion through the 1Click API of NEAR Intents. The partner JWT for that API is held in exactly one variable.
+
+| Item            | Value                                                                                                                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Variable        | `ONECLICK_PARTNER_KEY` (secret)                                                                                                                                                                                                           |
+| Set on          | `api` and `worker:settlement` only (section 3). Never on the web app, the wallet bridge or `migrate`. Never in this repository, a log or a chat.                                                                                          |
+| Where to get it | The NEAR Intents Partner Dashboard, https://partners.near-intents.org/home, as described in the official [API Keys page](https://docs.near-intents.org/integration/distribution-channels/1click-api/authentication.md) (read 2026-11-12). |
+| How it is sent  | As the `X-API-Key` header on 1Click requests. The same docs say `Authorization: Bearer` is also accepted for the same JWT.                                                                                                                |
+| Without it      | The docs say unauthenticated requests pay an extra 0.25% platform fee on every non-`ANY_INPUT` quote, while authenticated requests use the partner fee schedule (typically 20 bps, or 1 bp on stablecoin and same-asset routes).          |
+
+Which features need it:
+
+- **Every quote:** payout quotes, funding quotes (USDC from other chains, NEAR and USDT conversions), and the signed-intent payload and submit calls. The API and the settlement worker refuse to start without it (section 3), so nothing runs unauthenticated by accident.
+- **Settlement status checks** in the worker.
+- **`pnpm verify` step 11.3 (dry 1Click quotes).** With no key in the environment the step is skipped, and the report says `SKIPPED ... no partner key (ONECLICK_PARTNER_KEY)`. It never fails because the key is missing, and it never prints the key.
+- **Not needed:** the demo (`pnpm demo`, `pnpm dev:web`), the browser checks, the privacy proof and the verify page (they read NEAR RPC only), the unit and database tests, and `pnpm dev:wallet` for sign-in.
+
+If the key is rotated in the Partner Dashboard, set the new value on `api` and `worker:settlement` together, restart both, and check `GET /ready`.
+
+## 16. Email delivery (not built yet)
+
+Veylo has email accounts (sign-up, confirmation, password reset, contractor invitations). The API writes each message to the `email_outbox` table, and **nothing sends it yet**: no email provider is chosen (founder decision, see [DECISIONS.md](../DECISIONS.md)). Until one is wired, a real person doesn't receive the confirmation link, the reset link or an invitation.
+
+What the founder needs to decide and set up:
+
+- **A provider** that sends transactional email, and a sending domain with SPF, DKIM and DMARC set. Veylo does not name one here.
+- **A sender job** (in `worker:settlement`, or a small worker of its own) that reads rows with `delivered_at IS NULL`, sends them, and sets `delivered_at`. It would hold the provider's API key as a secret on that process only (never the web app, the bridge or `migrate`).
+- **Retention.** Each row's body holds a single-use link (a confirmation link lasts 24 hours, a reset link 1 hour). Treat the table as sensitive: delete delivered rows after a short time. A purge is not built yet.
+
+Until then, the local demo and the tests read the outbox directly. The sign-up screens say "check your email", so the hosted demo must not be mistaken for a working email flow.
+
+## 17. Exchange rates for local-currency estimates
+
+Local-currency estimates (NGN, EUR, GBP, KES, INR and others) are display only. The API fetches one public rate list, `https://open.er-api.com/v6/latest/USD` (ExchangeRate-API's open access endpoint), caches it for up to one hour, and serves it to signed-in users at `GET /fx`. When the source can't be reached the answer is "unavailable" and every screen says "rate unavailable"; nothing is guessed.
+
+- **No key and no variable.** The endpoint needs no account. The screens show the source's required attribution and a link to its terms.
+- **Only the API contacts it.** The browser never does (the web app's CSP has no entry for it).
+- **Never in a payment.** The rates are not used to work out, quote, sign or settle anything; a test reads the source of every payout path and fails if one imports the rate code.

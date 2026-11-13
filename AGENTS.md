@@ -20,7 +20,7 @@ No Docker or local Postgres is needed for `pnpm verify`. Tests use PGlite, an em
 | `pnpm format`                      | Formats with Prettier                                                                    |
 | `pnpm --filter @veylo/db generate` | Generates a migration after a schema change                                              |
 | `pnpm db:migrate`                  | Applies pending migrations to `DATABASE_URL` and prints which. Never a schema push       |
-| `pnpm evidence:generate`           | Writes `docs/EVIDENCE.md` from `DATABASE_URL` and the Phase 2 records. Deterministic   |
+| `pnpm evidence:generate`           | Writes `docs/EVIDENCE.md` from `DATABASE_URL` and the Phase 2 records. Deterministic     |
 | `pnpm worker:settlement`           | The settlement worker (session key only)                                                 |
 | `pnpm worker:agents`               | The agent worker placeholder (agent key only; no jobs until slice 8)                     |
 | `pnpm test:pg`                     | Runs the db and api suites on the real Postgres in `DATABASE_URL`. Needs CREATEDB        |
@@ -33,7 +33,7 @@ No Docker or local Postgres is needed for `pnpm verify`. Tests use PGlite, an em
 | `packages/core/`               | Pure domain logic. No I/O, and no dependencies                                                         |
 | `packages/intents/`            | NEP-413 serialization and verification                                                                 |
 | `packages/chains/`             | Address validation, NEAR RPC reader and the key-ownership check                                        |
-| `packages/secrets/`            | Envelope encryption: per-org data keys wrapped by a master key, bound by associated data         |
+| `packages/secrets/`            | Envelope encryption: per-org data keys wrapped by a master key, bound by associated data               |
 | `packages/db/`                 | Drizzle schema, migrations and repositories                                                            |
 | `packages/config/`             | Environment validation                                                                                 |
 | `tools/verify/`                | `pnpm verify`, plus repository guard tests                                                             |
@@ -42,30 +42,30 @@ No Docker or local Postgres is needed for `pnpm verify`. Tests use PGlite, an em
 
 ## Key logic
 
-| Logic                                                        | File                                  |
-| ------------------------------------------------------------ | ------------------------------------- |
-| Money: bigint amounts, parsing and formatting                | `packages/core/src/money.ts`          |
-| Payout attempt states, transitions, retry rules              | `packages/core/src/payout-attempt.ts` |
-| Pay run states, transitions, status derivation               | `packages/core/src/pay-run.ts`        |
-| Fee math and the basis-point rounding rule                   | `packages/core/src/fees.ts`           |
-| Live and simulated mode                                      | `packages/core/src/mode.ts`           |
-| Database tables and idempotency constraints                  | `packages/db/src/schema.ts`           |
-| Audit log append-only trigger                                | `packages/db/migrations/`             |
-| Supported payout routes and address hygiene rules            | `packages/core/src/routes.ts`, `hygiene.ts` |
-| Address validation per chain                                 | `packages/chains/src/addresses.ts`    |
-| 1Click client, dry quotes only                               | `packages/intents/src/oneclick.ts`    |
+| Logic                                                        | File                                                                    |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| Money: bigint amounts, parsing and formatting                | `packages/core/src/money.ts`                                            |
+| Payout attempt states, transitions, retry rules              | `packages/core/src/payout-attempt.ts`                                   |
+| Pay run states, transitions, status derivation               | `packages/core/src/pay-run.ts`                                          |
+| Fee math and the basis-point rounding rule                   | `packages/core/src/fees.ts`                                             |
+| Live and simulated mode                                      | `packages/core/src/mode.ts`                                             |
+| Database tables and idempotency constraints                  | `packages/db/src/schema.ts`                                             |
+| Audit log append-only trigger                                | `packages/db/migrations/`                                               |
+| Supported payout routes and address hygiene rules            | `packages/core/src/routes.ts`, `hygiene.ts`                             |
+| Address validation per chain                                 | `packages/chains/src/addresses.ts`                                      |
+| 1Click client, dry quotes only                               | `packages/intents/src/oneclick.ts`                                      |
 | Canonical payee messages and `payable` rules                 | `packages/core/src/payee.ts` (hashing: `packages/intents/src/payee.ts`) |
-| Live quotes, only funding and shield (L30)                   | `packages/intents/src/oneclick-treasury.ts` |
-| Pay-run review flags                                         | `packages/core/src/review.ts`         |
-| 1Click quote signature check (gate A, server side)           | `packages/intents/src/quote-signature.ts` |
-| Payability: the server replica of gate B                     | `apps/api/src/payability.ts`          |
-| Signing, submit and retry routes                             | `apps/api/src/payout-routes.ts`       |
-| Settlement jobs (poll, reconcile, resolve, expire, release)  | `apps/api/src/settlement.ts`, run by `apps/api/src/worker.ts` |
-| Ledger, payslips, CSV export, audit view                     | `apps/api/src/reporting-routes.ts`    |
-| Explorer links (official domains only)                       | `packages/chains/src/explorers.ts`    |
-| EVIDENCE.md and its re-check against public RPC              | `tools/verify/src/evidence.ts`        |
-| Per-service environment loaders                              | `packages/config/src/index.ts`        |
-| Repository rules, such as core purity and no floats on money | `tools/verify/src/guards.test.ts`     |
+| Live quotes, only funding and shield (L30)                   | `packages/intents/src/oneclick-treasury.ts`                             |
+| Pay-run review flags                                         | `packages/core/src/review.ts`                                           |
+| 1Click quote signature check (gate A, server side)           | `packages/intents/src/quote-signature.ts`                               |
+| Payability: the server replica of gate B                     | `apps/api/src/payability.ts`                                            |
+| Signing, submit and retry routes                             | `apps/api/src/payout-routes.ts`                                         |
+| Settlement jobs (poll, reconcile, resolve, expire, release)  | `apps/api/src/settlement.ts`, run by `apps/api/src/worker.ts`           |
+| Ledger, payslips, CSV export, audit view                     | `apps/api/src/reporting-routes.ts`                                      |
+| Explorer links (official domains only)                       | `packages/chains/src/explorers.ts`                                      |
+| EVIDENCE.md and its re-check against public RPC              | `tools/verify/src/evidence.ts`                                          |
+| Per-service environment loaders                              | `packages/config/src/index.ts`                                          |
+| Repository rules, such as core purity and no floats on money | `tools/verify/src/guards.test.ts`                                       |
 
 ## Rules for changes
 

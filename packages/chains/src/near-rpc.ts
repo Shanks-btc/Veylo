@@ -1,3 +1,4 @@
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { parseEd25519PublicKey } from "@veylo/intents";
 import { z } from "zod";
 
@@ -132,7 +133,7 @@ export async function isOwnerKey(
   const key = parseEd25519PublicKey(publicKey);
   if (!key) return false;
   if (IMPLICIT_ACCOUNT.test(accountId) && !(await rpc.viewAccount(accountId))) {
-    return Buffer.from(key).toString("hex") === accountId;
+    return bytesToHex(key) === accountId;
   }
   return (await rpc.viewAccessKey(accountId, publicKey)) === "full_access";
 }

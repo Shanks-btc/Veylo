@@ -1,3 +1,4 @@
+import { ENABLED_PAYOUT_ROUTE_IDS } from "@veylo/core";
 import { createHash } from "node:crypto";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
@@ -9,7 +10,10 @@ import type { OneClickDryClient, OneClickTreasuryClient } from "@veylo/intents";
 import type { SecretBox } from "@veylo/secrets";
 import Fastify from "fastify";
 import type { z } from "zod";
+import { accountRoutes } from "./account-routes.js";
 import { authRoutes } from "./auth-routes.js";
+import type { FxClient } from "./fx.js";
+import { settingsRoutes } from "./settings-routes.js";
 import { AppError, invalidRequest } from "./errors.js";
 import { contractorRoutes } from "./contractor-routes.js";
 import { createGuards } from "./guards.js";
@@ -19,6 +23,8 @@ import { payeeRoutes } from "./payee-routes.js";
 import { payRunRoutes } from "./pay-run-routes.js";
 import { payoutRoutes } from "./payout-routes.js";
 import { reportingRoutes } from "./reporting-routes.js";
+import { portalRoutes } from "./portal-routes.js";
+import { scheduleRoutes } from "./schedule-routes.js";
 import { treasuryRoutes } from "./treasury-routes.js";
 
 export type Deps = {
@@ -30,6 +36,8 @@ export type Deps = {
   oneclickTreasury: OneClickTreasuryClient;
   intents: IntentsReader;
   secrets: SecretBox;
+  /** Display-only FX rates (W6). Optional: without it the rates are unavailable. */
+  fx?: FxClient;
   config: {
     authRecipient: string;
     webOrigin: string;
@@ -45,6 +53,16 @@ export type Deps = {
     /** TRUST_PROXY_HOPS: proxy hops to trust for the client IP that rate limiting keys on. */
     trustProxyHops?: number;
     logClientIp?: boolean;
+    /**
+     * Payout routes this API accepts. Production always uses core's ENABLED_PAYOUT_ROUTE_IDS
+     * (L46); tests may pass more so disabled routes stay covered. Never read from the environment.
+     */
+    enabledPayoutRoutes?: readonly string[];
+    /**
+     * Funding options this API accepts (W6). Production uses core's ENABLED_FUNDING_ORIGIN_IDS;
+     * tests may pass more so the options waiting on a spike stay covered. Never from the environment.
+     */
+    enabledFundingOrigins?: readonly string[];
   };
   /** Tests capture log output here. */
   logStream?: NodeJS.WritableStream;
@@ -128,12 +146,21 @@ export async function buildServer(deps: Deps) {
 
   const guards = createGuards(deps);
   await authRoutes(app, deps, guards);
+  await accountRoutes(app, deps, guards);
   await orgRoutes(app, deps, guards);
-  await contractorRoutes(app, deps, guards);
+  const contractors = await contractorRoutes(app, deps, guards);
+  await portalRoutes(app, deps, guards, contractors.addDestination);
   await payeeRoutes(app, deps, guards);
   await treasuryRoutes(app, deps, guards);
   await payRunRoutes(app, deps, guards);
   await payoutRoutes(app, deps, guards);
   await reportingRoutes(app, deps, guards);
+  await scheduleRoutes(app, deps, guards);
+  await settingsRoutes(app, deps, guards);
   return app;
+}
+
+/** Whether a payout route may be used (L46). Disabled and "coming soon" routes are refused. */
+export function routeEnabled(deps: Deps, routeId: string): boolean {
+  return (deps.config.enabledPayoutRoutes ?? ENABLED_PAYOUT_ROUTE_IDS).includes(routeId);
 }

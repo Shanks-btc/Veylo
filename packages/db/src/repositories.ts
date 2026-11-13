@@ -33,6 +33,8 @@ const {
   sessions1Click,
   treasuryEvents,
   treasurySessionRequests,
+  contractorSessionRequests,
+  sessions1ClickContractor,
   payeeApprovals,
   payeeRegistryHeads,
   payeeRequests,
@@ -45,6 +47,8 @@ const {
   sessions,
   treasuries,
   users,
+  emailTokens,
+  emailOutbox,
 } = schema;
 
 // The driver differs between PGlite (tests) and pg (production), and a transaction is also a Db.
@@ -122,6 +126,8 @@ export async function findActiveSession(db: Db, tokenHash: string, now: Date) {
       sessionId: sessions.id,
       userId: users.id,
       nearAccountId: users.nearAccountId,
+      email: users.email,
+      emailVerifiedAt: users.emailVerifiedAt,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -171,6 +177,9 @@ export async function getOrganization(db: Db, orgId: string) {
     .select({
       id: organizations.id,
       name: organizations.name,
+      displayCurrency: organizations.displayCurrency,
+      timeZone: organizations.timeZone,
+      notifications: organizations.notifications,
       treasuryAccountId: treasuries.nearAccountId,
     })
     .from(organizations)
@@ -198,6 +207,7 @@ export async function listActiveMembers(db: Db, orgId: string) {
     .select({
       userId: memberships.userId,
       nearAccountId: users.nearAccountId,
+      email: users.email,
       role: memberships.role,
     })
     .from(memberships)
@@ -278,7 +288,12 @@ export async function lockActiveOwners(db: Db, orgId: string) {
     .for("update");
 }
 
-type ContractorFields = { name: string; email: string | null; terms: unknown };
+type ContractorFields = {
+  name: string;
+  email: string | null;
+  terms: unknown;
+  displayCurrency?: string | null;
+};
 
 export async function insertContractor(db: Db, orgId: string, values: ContractorFields) {
   const [row] = await db
@@ -345,6 +360,8 @@ export async function insertDestination(
     assetId: string;
     payoutMode: "direct" | "private";
     address: string;
+    /** Only for an address a contractor asked for: it ages from their request, not from approval. */
+    createdAt?: Date;
   },
 ) {
   const [row] = await db
@@ -658,6 +675,110 @@ export async function markOneClickSessionNeedsResign(db: Db, orgId: string) {
     .update(sessions1Click)
     .set({ status: "needs_resign" })
     .where(eq(sessions1Click.orgId, orgId));
+}
+
+// --- A contractor's own 1Click session (slice W6) ---
+
+export async function insertContractorSessionRequest(
+  db: Db,
+  values: typeof contractorSessionRequests.$inferInsert,
+) {
+  const [row] = await db.insert(contractorSessionRequests).values(values).returning();
+  if (!row) throw new Error("request was not created");
+  return row;
+}
+
+export async function getContractorSessionRequest(
+  db: Db,
+  orgId: string,
+  contractorId: string,
+  id: string,
+) {
+  const [row] = await db
+    .select()
+    .from(contractorSessionRequests)
+    .where(
+      and(
+        eq(contractorSessionRequests.orgId, orgId),
+        eq(contractorSessionRequests.contractorId, contractorId),
+        eq(contractorSessionRequests.id, id),
+      ),
+    );
+  return row;
+}
+
+export async function consumeContractorSessionRequest(
+  db: Db,
+  orgId: string,
+  contractorId: string,
+  id: string,
+  now: Date,
+) {
+  const rows = await db
+    .update(contractorSessionRequests)
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(contractorSessionRequests.orgId, orgId),
+        eq(contractorSessionRequests.contractorId, contractorId),
+        eq(contractorSessionRequests.id, id),
+        isNull(contractorSessionRequests.usedAt),
+        gt(contractorSessionRequests.expiresAt, now),
+      ),
+    )
+    .returning({ id: contractorSessionRequests.id });
+  return rows.length === 1;
+}
+
+export async function findContractorOneClickSession(db: Db, orgId: string, contractorId: string) {
+  const [row] = await db
+    .select()
+    .from(sessions1ClickContractor)
+    .where(
+      and(
+        eq(sessions1ClickContractor.orgId, orgId),
+        eq(sessions1ClickContractor.contractorId, contractorId),
+      ),
+    );
+  return row;
+}
+
+export async function saveContractorOneClickSession(
+  db: Db,
+  values: typeof sessions1ClickContractor.$inferInsert,
+) {
+  await db
+    .insert(sessions1ClickContractor)
+    .values(values)
+    .onConflictDoUpdate({
+      target: sessions1ClickContractor.contractorId,
+      set: {
+        accountId: values.accountId,
+        encryptedAccessToken: values.encryptedAccessToken,
+        encryptedRefreshToken: values.encryptedRefreshToken,
+        accessExpiresAt: values.accessExpiresAt,
+        refreshExpiresAt: values.refreshExpiresAt,
+        status: values.status,
+      },
+    });
+}
+
+export async function updateContractorOneClickAccessToken(
+  db: Db,
+  contractorId: string,
+  values: { encryptedAccessToken: string; accessExpiresAt: Date },
+) {
+  await db
+    .update(sessions1ClickContractor)
+    .set(values)
+    .where(eq(sessions1ClickContractor.contractorId, contractorId));
+}
+
+export async function markContractorOneClickSessionNeedsResign(db: Db, contractorId: string) {
+  await db
+    .update(sessions1ClickContractor)
+    .set({ status: "needs_resign" })
+    .where(eq(sessions1ClickContractor.contractorId, contractorId));
 }
 
 export async function insertTreasuryEvent(db: Db, values: typeof treasuryEvents.$inferInsert) {
@@ -1190,4 +1311,423 @@ export async function writeAudit(
   },
 ) {
   await db.insert(auditLog).values(values);
+}
+
+// Acknowledgements (slice W5, D5): the owner ticks "I've checked this" for a warned item.
+export async function acknowledgeItem(db: Db, orgId: string, itemId: string, userId: string) {
+  await db
+    .insert(schema.itemAcknowledgements)
+    .values({ orgId, itemId, userId })
+    .onConflictDoNothing();
+}
+
+export async function isItemAcknowledged(db: Db, orgId: string, itemId: string) {
+  const rows = await db
+    .select()
+    .from(schema.itemAcknowledgements)
+    .where(
+      and(
+        eq(schema.itemAcknowledgements.orgId, orgId),
+        eq(schema.itemAcknowledgements.itemId, itemId),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** A re-review recomputes the warnings, so earlier ticks no longer cover them. */
+export async function clearAcknowledgements(db: Db, orgId: string, itemIds: readonly string[]) {
+  if (itemIds.length === 0) return;
+  await db
+    .delete(schema.itemAcknowledgements)
+    .where(
+      and(
+        eq(schema.itemAcknowledgements.orgId, orgId),
+        inArray(schema.itemAcknowledgements.itemId, [...itemIds]),
+      ),
+    );
+}
+
+// Recurring payroll (slice W5, D1).
+export type ScheduleRow = typeof schema.payrollSchedules.$inferSelect;
+
+export async function getSchedule(db: Db, orgId: string) {
+  const [row] = await db
+    .select()
+    .from(schema.payrollSchedules)
+    .where(eq(schema.payrollSchedules.orgId, orgId));
+  return row;
+}
+
+export async function upsertSchedule(
+  db: Db,
+  orgId: string,
+  values: {
+    kind: "monthly" | "biweekly";
+    dayOfMonth: number | null;
+    anchorDate: string | null;
+    timeZone: string;
+  },
+) {
+  await db
+    .insert(schema.payrollSchedules)
+    .values({ orgId, ...values })
+    .onConflictDoUpdate({
+      target: schema.payrollSchedules.orgId,
+      set: { ...values },
+    });
+}
+
+export async function setSchedulePaused(db: Db, orgId: string, paused: boolean) {
+  const rows = await db
+    .update(schema.payrollSchedules)
+    .set({ paused })
+    .where(eq(schema.payrollSchedules.orgId, orgId))
+    .returning();
+  return rows[0];
+}
+
+/** Every schedule that isn't paused, across organisations: the scheduled-payroll job's input. */
+export async function listActiveSchedules(db: Db) {
+  return db.select().from(schema.payrollSchedules).where(eq(schema.payrollSchedules.paused, false));
+}
+
+/**
+ * A draft pay run for one payday. The database allows one per organisation and payday, so running
+ * this twice (or two workers at once) can never make a second one: it returns undefined.
+ */
+export async function insertScheduledDraft(
+  db: Db,
+  values: { orgId: string; period: string; scheduledFor: string; readyAt: Date },
+) {
+  const [row] = await db
+    .insert(payRuns)
+    .values({
+      orgId: values.orgId,
+      period: values.period,
+      mode: "live",
+      status: "Draft",
+      preparedBy: "user",
+      totalAmountUsdc: 0n,
+      scheduledFor: values.scheduledFor,
+      readyForReviewAt: values.readyAt,
+    })
+    .onConflictDoNothing()
+    .returning();
+  return row;
+}
+
+// Contractor portal (slice W5, D3).
+export async function createInvite(
+  db: Db,
+  values: {
+    orgId: string;
+    contractorId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    createdBy: string;
+  },
+) {
+  const [row] = await db.insert(schema.contractorInvites).values(values).returning();
+  if (!row) throw new Error("invite was not created");
+  return row;
+}
+
+export type AcceptResult =
+  { ok: true; orgId: string; contractorId: string } | { ok: false; reason: "invalid" | "claimed" };
+
+/**
+ * Single use: the invite is marked accepted in the same statement that checks it hasn't been, so
+ * two people (or two tabs) can't both use one link. An unknown, used or expired link is "invalid".
+ */
+export async function acceptInvite(
+  db: Db,
+  tokenHash: string,
+  userId: string,
+  now: Date,
+): Promise<AcceptResult> {
+  return db
+    .transaction(async (tx) => {
+      const [invite] = await tx
+        .update(schema.contractorInvites)
+        .set({ acceptedAt: now, acceptedBy: userId })
+        .where(
+          and(
+            eq(schema.contractorInvites.tokenHash, tokenHash),
+            isNull(schema.contractorInvites.acceptedAt),
+            gt(schema.contractorInvites.expiresAt, now),
+          ),
+        )
+        .returning();
+      if (!invite) return { ok: false, reason: "invalid" } as const;
+      const [contractor] = await tx
+        .select()
+        .from(contractors)
+        .where(and(eq(contractors.orgId, invite.orgId), eq(contractors.id, invite.contractorId)));
+      if (!contractor) return { ok: false, reason: "invalid" } as const;
+      if (contractor.userId !== null && contractor.userId !== userId) {
+        // Someone else already holds this contractor. Undo the use of the link.
+        tx.rollback();
+      }
+      await tx
+        .update(contractors)
+        .set({ userId })
+        .where(and(eq(contractors.orgId, invite.orgId), eq(contractors.id, invite.contractorId)));
+      return { ok: true, orgId: invite.orgId, contractorId: invite.contractorId } as const;
+    })
+    .catch((err: unknown) => {
+      if (err instanceof Error && /rollback/i.test(err.message))
+        return { ok: false, reason: "claimed" } as const;
+      throw err;
+    });
+}
+
+export async function listContractorsForUser(db: Db, userId: string) {
+  return db
+    .select({
+      orgId: contractors.orgId,
+      orgName: organizations.name,
+      contractorId: contractors.id,
+      name: contractors.name,
+      displayCurrency: contractors.displayCurrency,
+      orgDisplayCurrency: organizations.displayCurrency,
+    })
+    .from(contractors)
+    .innerJoin(organizations, eq(organizations.id, contractors.orgId))
+    .where(and(eq(contractors.userId, userId), eq(contractors.status, "active")));
+}
+
+export async function getContractorForUser(db: Db, contractorId: string, userId: string) {
+  const [row] = await db
+    .select()
+    .from(contractors)
+    .where(and(eq(contractors.id, contractorId), eq(contractors.userId, userId)));
+  return row;
+}
+
+export async function insertAddressChange(
+  db: Db,
+  values: {
+    orgId: string;
+    contractorId: string;
+    route: string;
+    address: string;
+    requestedBy: string;
+    requestedAt: Date;
+    appliesAfter: Date;
+  },
+) {
+  const [row] = await db.insert(schema.addressChangeRequests).values(values).returning();
+  if (!row) throw new Error("address change was not created");
+  return row;
+}
+
+export async function listAddressChanges(db: Db, orgId: string, contractorId: string) {
+  return db
+    .select()
+    .from(schema.addressChangeRequests)
+    .where(
+      and(
+        eq(schema.addressChangeRequests.orgId, orgId),
+        eq(schema.addressChangeRequests.contractorId, contractorId),
+      ),
+    )
+    .orderBy(desc(schema.addressChangeRequests.requestedAt));
+}
+
+/** Marks a request applied only if it is still open, so applying twice makes one destination. */
+export async function markAddressChangeApplied(
+  db: Db,
+  orgId: string,
+  requestId: string,
+  now: Date,
+) {
+  const [row] = await db
+    .update(schema.addressChangeRequests)
+    .set({ appliedAt: now })
+    .where(
+      and(
+        eq(schema.addressChangeRequests.orgId, orgId),
+        eq(schema.addressChangeRequests.id, requestId),
+        isNull(schema.addressChangeRequests.appliedAt),
+        isNull(schema.addressChangeRequests.cancelledAt),
+      ),
+    )
+    .returning();
+  return row;
+}
+
+// --- Email accounts (W6): login, verification, reset. No signing power; nothing here touches a key. ---
+
+const lowerEmail = (email: string) => email.trim().toLowerCase();
+
+export async function findUserByEmail(db: Db, email: string) {
+  const [row] = await db
+    .select()
+    .from(users)
+    .where(sql`lower(${users.email}) = ${lowerEmail(email)}`);
+  return row;
+}
+
+export async function getUser(db: Db, userId: string) {
+  const [row] = await db.select().from(users).where(eq(users.id, userId));
+  return row;
+}
+
+/** Creates an email account; undefined if the address is already taken. */
+export async function createEmailUser(db: Db, values: { email: string; passwordHash: string }) {
+  const rows = await db
+    .insert(users)
+    .values({ email: lowerEmail(values.email), passwordHash: values.passwordHash })
+    .onConflictDoNothing()
+    .returning();
+  return rows[0];
+}
+
+export async function setPasswordHash(db: Db, userId: string, passwordHash: string) {
+  await db
+    .update(users)
+    .set({ passwordHash, failedLogins: 0, lockedUntil: null })
+    .where(eq(users.id, userId));
+}
+
+/** Counts a failed login and locks the account for `lockMs` after `maxFailures` in a row. */
+export async function recordLoginFailure(
+  db: Db,
+  userId: string,
+  opts: { now: Date; maxFailures: number; lockMs: number },
+) {
+  const [row] = await db
+    .update(users)
+    .set({ failedLogins: sql`${users.failedLogins} + 1` })
+    .where(eq(users.id, userId))
+    .returning({ failedLogins: users.failedLogins });
+  if (row && row.failedLogins >= opts.maxFailures) {
+    await db
+      .update(users)
+      .set({ lockedUntil: new Date(opts.now.getTime() + opts.lockMs), failedLogins: 0 })
+      .where(eq(users.id, userId));
+  }
+}
+
+export async function clearLoginFailures(db: Db, userId: string) {
+  await db.update(users).set({ failedLogins: 0, lockedUntil: null }).where(eq(users.id, userId));
+}
+
+export async function markEmailVerified(db: Db, userId: string, now: Date) {
+  await db
+    .update(users)
+    .set({ emailVerifiedAt: now })
+    .where(and(eq(users.id, userId), isNull(users.emailVerifiedAt)));
+}
+
+export async function insertEmailToken(
+  db: Db,
+  values: { userId: string; purpose: "verify" | "reset"; tokenHash: string; expiresAt: Date },
+) {
+  await db.insert(emailTokens).values(values);
+}
+
+/** A newer token replaces older unused ones of the same kind. */
+export async function invalidateEmailTokens(
+  db: Db,
+  userId: string,
+  purpose: "verify" | "reset",
+  now: Date,
+) {
+  await db
+    .update(emailTokens)
+    .set({ usedAt: now })
+    .where(
+      and(
+        eq(emailTokens.userId, userId),
+        eq(emailTokens.purpose, purpose),
+        isNull(emailTokens.usedAt),
+      ),
+    );
+}
+
+/** The single point that spends a token: one UPDATE decides, so a link works once. */
+export async function consumeEmailToken(
+  db: Db,
+  values: { tokenHash: string; purpose: "verify" | "reset"; now: Date },
+): Promise<{ userId: string } | undefined> {
+  const rows = await db
+    .update(emailTokens)
+    .set({ usedAt: values.now })
+    .where(
+      and(
+        eq(emailTokens.tokenHash, values.tokenHash),
+        eq(emailTokens.purpose, values.purpose),
+        isNull(emailTokens.usedAt),
+        gt(emailTokens.expiresAt, values.now),
+      ),
+    )
+    .returning({ userId: emailTokens.userId });
+  return rows[0];
+}
+
+/** Revokes every session of a user, as a password reset does. */
+export async function revokeAllSessions(db: Db, userId: string, now: Date) {
+  await db
+    .update(sessions)
+    .set({ revokedAt: now })
+    .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)));
+}
+
+/** Links a wallet account (proved by a signature, in the route) to a user; false if it's taken. */
+export async function linkWalletToUser(db: Db, userId: string, nearAccountId: string) {
+  const [taken] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.nearAccountId, nearAccountId));
+  if (taken && taken.id !== userId) return false;
+  const rows = await db
+    .update(users)
+    .set({ nearAccountId })
+    .where(and(eq(users.id, userId), isNull(users.nearAccountId)))
+    .returning({ id: users.id });
+  return rows.length === 1 || taken?.id === userId;
+}
+
+export async function insertOutboxEmail(
+  db: Db,
+  values: { toEmail: string; kind: string; subject: string; body: string },
+) {
+  await db.insert(emailOutbox).values(values);
+}
+
+export async function listOutboxFor(db: Db, toEmail: string) {
+  return db
+    .select()
+    .from(emailOutbox)
+    .where(eq(emailOutbox.toEmail, lowerEmail(toEmail)))
+    .orderBy(desc(emailOutbox.createdAt));
+}
+
+// --- Organisation settings (W6): display only ---
+
+export async function updateOrganizationSettings(
+  db: Db,
+  orgId: string,
+  patch: {
+    name?: string;
+    displayCurrency?: string;
+    timeZone?: string;
+    notifications?: { payrollReady: boolean; payoutSettled: boolean; weeklySummary: boolean };
+  },
+) {
+  const set = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+  if (Object.keys(set).length === 0) return;
+  await db.update(organizations).set(set).where(eq(organizations.id, orgId));
+}
+
+/** Every registry head, newest first, for the history screen. */
+export async function listHeads(db: Db, orgId: string, limit: number) {
+  return db
+    .select()
+    .from(payeeRegistryHeads)
+    .where(eq(payeeRegistryHeads.orgId, orgId))
+    .orderBy(desc(payeeRegistryHeads.version))
+    .limit(limit);
 }

@@ -3,7 +3,7 @@
 Status: **v1.0, APPROVED by founder 2026-11-06.** Changes require a new DECISIONS.md entry.
 Every capability is labeled: **[proven]** (verified live in Phase 2), **[planned]** (designed, relies only on proven pieces), **[needs spike]** (depends on something not yet verified; see §12).
 
-Thesis (locked): Private borderless payroll and agent-payment infrastructure on NEAR: one confidential treasury pays your global team and funds your AI agents via HTTP 402, within limits the owner signs: gasless for everyone, and payroll that isn't publicly linked to your company.
+Thesis (locked, narrowed by L46): Private borderless payroll on NEAR: one confidential treasury pays your global team: gasless for everyone, and payroll that isn't publicly linked to your company.
 
 **Rule:** wherever the headline appears (README, landing page, pitch), the evidence-backed condition appears with it: what was checked, the fresh-address condition, and who can still see details (see `docs/PRIVACY.md`).
 
@@ -190,8 +190,8 @@ stateDiagram-v2
 **Security gate before signing (T-2 defense, A + B + C), run in the browser for every item; any failure blocks signing (fail closed):**
 - **A. Quote authenticity** [signature check proven offline, S-C]: verify 1Click's ed25519 signature on the quote against the pinned 1Click key (versioned config; confirmation of key and rotation policy requested from 1Click).
 - **B. Right recipient** [proven offline, S-A]: the quote's signed `recipient`, `destinationAsset` and `recipientType` must exactly match an **owner-signed, unexpired payee record** that is a member of the **current registry head** (version ≥ the browser's high-water mark). Signatures are verified with the owner's full-access public key fetched **directly from NEAR RPC** (`view_access_key_list`), or derived from the account ID for an implicit account, never from the Veylo backend.
-- **B2. Registered signing key** [planned]: before a payout signature, the browser confirms via NEAR RPC that the wallet's signing key is registered for the treasury on `intents.near` (`has_public_key`). Implicit accounts need no registration.
-- **C. Right amount** [planned]: the payload's `receiver_id` must equal the quote's `depositAddress`; the signed amount must be within expected payout + fee tolerance (catches unsigned `appFees`).
+- **B2. Registered signing key** [built, slice W3, L45]: before a payout signature, the browser confirms via NEAR RPC (`has_public_key`) that the wallet's signing key is registered for the treasury on **the verifier the payload names** (its NEP-413 `recipient`). Only the verifiers pinned in `packages/intents` are accepted: `intents.near` and `intents.far` (confidential payouts sign for `intents.far`). Any other verifier fails B2 without an RPC call. Implicit accounts signing with their own key need no registration.
+- **C. Right amount** [built, slice W1, ceiling L45]: the payload's `receiver_id` must equal the quote's `depositAddress`; the signed amount may exceed the payout by at most **max(1 USDC, 1% of the payout)** (catches unsigned `appFees`).
 - **No reliance on unsigned quote fields** (`appFees`, `confidentiality`, `insured`, `depositMode`). Privacy mode is enforced via signed `depositType` / `recipientType`.
 
 ### 6.4 Payout state machine (per line item, per attempt)
@@ -364,5 +364,25 @@ Design system (Phase 4) runs in parallel and applies from slice 2 onward.
 2. Every signing request gets a persisted `pending` state; a lost wallet response is resolved by checking status, never by blindly re-requesting a signature (rule 3).
 3. Deduplicate accounts returned by the wallet connector.
 4. Integrity-check runtime-loaded wallet code (pinned version + hash) as part of T-2 hardening.
-5. Supported for payouts in MVP: **Meteor, Chrome, desktop** (tested). All others unsupported until tested.
+5. Supported for payouts in MVP: **Meteor, Chrome, desktop** (tested with the real wallet). Slice W6 enables six more wallets that passed the written rules in `docs/WALLETS.md` (read, pinned and fixture-tested, not yet tried live); a live test of each is a founder task (section 16).
 6. NEAR Connect pinned: `@hot-labs/near-connect` 0.12.0 (same project as "HOT Connect").
+
+## 16. Slice W6 additions
+
+What changed in the design, and the rule each part keeps. Every money path still signs with the treasury wallet and passes browser gates A, B, B2 and C, and fails closed.
+
+**Wallets (L58).** One bridge page per enabled external wallet (`/w/<id>/`), each with its own CSP naming only that wallet's reviewed hosts (`apps/web/scripts/bridge-csp.mjs`, hosts in `wallets.lock.json`); executors are served from the bridge origin under a name carrying their SHA-256, and a test and `pnpm verify` recompute each hash. The app's CSP never names a wallet host. The app verifies the signature over its own bytes, the key and the account for every wallet alike. No header rule on the bridge may match two paths (a catch-all would override the Veylo wallet page's passkey permission).
+
+**The Veylo wallet (L60).** `/embedded/` on the bridge origin, `connect-src 'none'`. An ed25519 key from a BIP-39 phrase (SLIP-10, `m/44'/397'/0'`), kept as an AES-256-GCM vault in that origin's IndexedDB, unlocked by a passkey PRF output or an Argon2id wallet password; the account is the implicit account of the key. The recovery phrase must be confirmed before the wallet is stored. The server never sees any of it; the email password never unlocks it. Signing uses the unchanged bridge protocol.
+
+**Email accounts (L62).** Email and password (Argon2id on the server), single-use hashed tokens, an outbox table (delivery is not built). The email account has no signing power; creating an organisation needs a wallet linked by a NEP-413 signature over a message the browser checks first (`apps/web/src/auth/link.ts`).
+
+**Funding (gate F).** The treasury holds USDC. Every funding quote is signed by 1Click; the browser verifies the signature against the pinned key and compares the signed fields with what the person asked for (own treasury as recipient, the refund address, the amount, the deposit address on screen) before it shows a deposit address (`apps/web/src/gates/funding.ts`). NEAR and USDT conversions are "coming soon" until spikes S-F2 and S-FT pass.
+
+**NEAR payouts (L56).** The salary stays in USD. The NEAR amount is sized when the payout is quoted (EXACT_OUTPUT, from 1Click's listed price, used only to size the request); gate C accepts a signed quote only if the USDC spent is at least the approved USD value and at most that plus max(1 USDC, 1%). Direct only; "coming soon" until spike S-NR.
+
+**A contractor's private balance.** The contractor's wallet signs an empty intent (the browser's session gate, `gates/session.ts`, refuses anything else) to open a read-only 1Click session, kept encrypted with the organisation's data key, bound to the contractor and purpose. It can read; it cannot move money. Cash-out stays "coming soon" until S-P passes.
+
+**Local currencies (L56).** Display only. One public rate source, cached for an hour, fetched by the API; the rate code is not imported by any payout, quote, signing or gate code (`tools/verify/src/fx-isolation.test.ts`).
+
+**Tests that guard this.** Browser: `scripts/pages-check.mjs` (crawler, page states, responsive widths, axe) and `scripts/embedded-e2e.mjs` (the Veylo wallet over two real origins). Static: links, claims, bank and fiat copy, FX isolation, spike refusal, `docs/WALLETS.md` against the lock.

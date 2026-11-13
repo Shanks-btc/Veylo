@@ -12,6 +12,7 @@ import {
   getApproval,
   getContractor,
   getCurrentHead,
+  listHeads,
   getDestination,
   getOrganization,
   getPayeeRequest,
@@ -35,8 +36,8 @@ import {
 } from "@veylo/intents";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { parse, type Deps } from "./app.js";
-import { AppError, conflict, notFound } from "./errors.js";
+import { parse, routeEnabled, type Deps } from "./app.js";
+import { AppError, conflict, notFound, routeDisabled } from "./errors.js";
 import type { Guards } from "./guards.js";
 
 const OWNER_ONLY = ["owner"] as const;
@@ -129,6 +130,7 @@ export async function payeeRoutes(app: FastifyInstance, deps: Deps, guards: Guar
         throw notApprovable();
       }
 
+      if (!routeEnabled(deps, destination.route)) throw routeDisabled();
       const now = deps.clock();
       const route = getPayoutRoute(destination.route as PayoutRouteId);
       const version = (await maxApprovalVersion(deps.db, orgId, destinationId)) + 1;
@@ -415,6 +417,40 @@ export async function payeeRoutes(app: FastifyInstance, deps: Deps, guards: Guar
       }
     },
   );
+
+  app.get("/orgs/:orgId/payee-registry/history", async (request) => {
+    const { orgId } = parse(orgParams, request.params);
+    await guards.requireMember(request, orgId);
+    const heads = await listHeads(deps.db, orgId, 50);
+    const versions = [];
+    for (const head of heads) {
+      const approvals = await listApprovalsByHash(deps.db, orgId, headHashes(head));
+      versions.push({
+        head: {
+          version: head.version,
+          activeSetHash: head.activeSetHash,
+          ownerPublicKey: head.ownerPublicKey,
+          signature: head.signature,
+          signedAt: head.signedAt,
+          ...(head.payload as object),
+        },
+        approvals: approvals.map((a) => ({
+          id: a.id,
+          destinationId: a.destinationId,
+          version: a.version,
+          contractorName: a.contractorName,
+          ownerAccountId: a.ownerAccountId,
+          ownerPublicKey: a.ownerPublicKey,
+          signature: a.signature,
+          approvedAt: a.approvedAt,
+          expiresAt: a.expiresAt,
+          ...(a.payload as object),
+          message: a.message,
+        })),
+      });
+    }
+    return { versions };
+  });
 
   app.get("/orgs/:orgId/payee-registry", async (request) => {
     const { orgId } = parse(orgParams, request.params);

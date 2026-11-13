@@ -162,7 +162,7 @@ describe("CSV export", () => {
     const text = await csv();
     const lines = text.split("\r\n");
     expect(lines[0]).toBe(
-      "date,pay run period,contractor name,amount,currency,route,chain,recipient,delivery fee,total fee,status,reconciled,refunded amount,deposit address,intent hash,NEAR tx hash,destination tx hash,destination explorer URL",
+      "date,pay run period,contractor name,amount,currency,paid currency,paid amount,rate (USDC per NEAR),quote time,route,chain,recipient,delivery fee,total fee,status,reconciled,refunded amount,deposit address,intent hash,NEAR tx hash,destination tx hash,destination explorer URL,transaction link,payslip ID",
     );
     expect(lines.at(-1)).toBe("");
     expect(lines).toHaveLength(5); // Header, 3 rows, trailing newline.
@@ -172,8 +172,10 @@ describe("CSV export", () => {
 
   it("formats amounts exactly, with 6 decimals and no floats", async () => {
     const ada = (await csv()).split("\r\n")[1] as string;
-    expect(ada).toBe(
-      `2026-11-07T10:05:00.000Z,2026-11,Ada Lovelace,0.050000,USDC,USDC on Base,Base,${EVM},0.002400,0.002413,SUCCESS,yes,0.000530,${DEPOSIT},ih-ada,${NEAR_TX},${BASE_TX},https://basescan.org/tx/${BASE_TX}`,
+    expect(ada).toMatch(
+      new RegExp(
+        `^2026-11-07T10:05:00.000Z,2026-11,Ada Lovelace,0.050000,USDC,USDC,0.050000,,2026-11-0[0-9]T[0-9:.]+Z,USDC on Base,Base,${EVM},0.002400,0.002413,SUCCESS,yes,0.000530,${DEPOSIT},ih-ada,${NEAR_TX},${BASE_TX},https://basescan.org/tx/${BASE_TX},https://basescan.org/tx/${BASE_TX},[0-9a-f-]{36}$`,
+      ),
     );
     expect(await csv()).toContain(",1.234567,");
   });

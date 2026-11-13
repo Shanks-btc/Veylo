@@ -1,3 +1,4 @@
+import { PAYOUT_ROUTE_IDS } from "@veylo/core";
 import { Writable } from "node:stream";
 import { schema } from "@veylo/db";
 import { eq } from "drizzle-orm";
@@ -791,6 +792,8 @@ describe("no secrets in logs", () => {
     const logged = await h.build({
       logStream: stream,
       config: {
+        // Tests keep every payout route covered (L46).
+        enabledPayoutRoutes: PAYOUT_ROUTE_IDS,
         authRecipient: "veylo.test",
         webOrigin: "https://app.veylo.test",
         sessionTtlHours: 24 * 30,
@@ -831,5 +834,107 @@ describe("no secrets in logs", () => {
       expect(log).not.toContain(secret);
     }
     await logged.close();
+  });
+});
+
+describe("funding options (W6)", () => {
+  const NEAR_REFUND = "northwind-refunds.near";
+
+  it("USDC on NEAR is accepted, goes to the treasury's own Intents balance, and says it is unproven", async () => {
+    const s = await setup();
+    const res = await funding(s, {
+      originRoute: "usdc-near",
+      amount: "1000000",
+      refundAddress: NEAR_REFUND,
+    });
+    expect(res.statusCode).toBe(201);
+    const j = res.json();
+    expect(j).toMatchObject({
+      originId: "usdc-near",
+      asset: "USDC",
+      network: "NEAR",
+      verification: "unproven",
+      convertsToUsdc: false,
+      treasuryAccountId: s.wallet.accountId,
+      refundAddress: NEAR_REFUND,
+    });
+    const live = h.one.requests.filter((r) => r.path === "/v0/quote").at(-1)?.body;
+    expect(live).toMatchObject({
+      swapType: "EXACT_INPUT",
+      originAsset: "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      depositType: "ORIGIN_CHAIN",
+      recipient: s.wallet.accountId,
+      recipientType: "INTENTS",
+    });
+  });
+
+  it("returns the signed quote and the amounts the browser shows before it shows the address", async () => {
+    const s = await setup();
+    const j = (await funding(s)).json();
+    expect(j.signedQuote.signature).toBeTruthy();
+    expect(j.signedQuote.quote.depositAddress).toBe(j.depositAddress);
+    expect(j.amountOut).toMatch(/^\d+$/);
+    expect(j.amountOutFormatted.length).toBeGreaterThan(0);
+    expect(j.convertsToUsdc).toBe(true);
+  });
+
+  it.each([["near"], ["usdt-near"]])(
+    "%s shows coming soon: the API refuses it until its spike passes",
+    async (originRoute) => {
+      const s = await setup();
+      const res = await funding(s, { originRoute, amount: "1000000", refundAddress: NEAR_REFUND });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe("FUNDING_NOT_ENABLED");
+      expect(h.one.requests.filter((r) => r.path === "/v0/quote")).toHaveLength(0);
+    },
+  );
+
+  it("NEAR and USDT on NEAR work once enabled, converting into USDC with EXACT_INPUT", async () => {
+    const { FUNDING_ORIGIN_IDS } = await import("@veylo/core");
+    const enabled = await h.build({
+      config: {
+        authRecipient: "veylo.test",
+        webOrigin: "https://app.veylo.test",
+        sessionTtlHours: 24,
+        logLevel: "silent",
+        enabledPayoutRoutes: PAYOUT_ROUTE_IDS,
+        enabledFundingOrigins: FUNDING_ORIGIN_IDS,
+      },
+    });
+    const owner = await signIn(enabled, new Wallet());
+    const org = await createOrg(enabled, owner.cookies);
+    for (const [originRoute, assetId] of [
+      ["near", "nep141:wrap.near"],
+      ["usdt-near", "nep141:usdt.tether-token.near"],
+    ] as const) {
+      h.one.reset();
+      const res = await enabled.inject({
+        method: "POST",
+        url: `/orgs/${org.id}/treasury/funding-quote`,
+        cookies: owner.cookies,
+        payload: { originRoute, amount: "1000000", refundAddress: NEAR_REFUND },
+      });
+      expect(res.statusCode, originRoute).toBe(201);
+      expect(res.json().convertsToUsdc).toBe(true);
+      const live = h.one.requests.filter((r) => r.path === "/v0/quote").at(-1)?.body;
+      expect(live).toMatchObject({
+        swapType: "EXACT_INPUT",
+        originAsset: assetId,
+        destinationAsset: "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+        recipientType: "INTENTS",
+      });
+    }
+    await enabled.close();
+  });
+
+  it("a NEAR refund address must be a valid NEAR account", async () => {
+    const s = await setup();
+    const res = await funding(s, {
+      originRoute: "usdc-near",
+      amount: "1000000",
+      refundAddress: "NOT A NEAR ACCOUNT",
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe("ADDRESS_INVALID");
   });
 });

@@ -1,3 +1,4 @@
+import { PAYOUT_ROUTE_IDS } from "@veylo/core";
 import { randomBytes } from "node:crypto";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { schema } from "@veylo/db";
@@ -278,6 +279,9 @@ describe("prepare and review", () => {
       deliveryFee: "2400",
       fee: "2400",
       asOf: START.toISOString(),
+      // A USDC payout is paid in USDC (W6): the asset says so, and there is no NEAR rate.
+      asset: "USDC",
+      rate: null,
     });
     expect(view.totals).toEqual({ payoutSum: "50000", feeSum: "2400", grandTotal: "52900" });
     const dry = quotes().filter((q) => q.body.dry);
@@ -735,6 +739,8 @@ describe("rate limits and audit", () => {
   it("quote and approve are limited per org and user", async () => {
     const limited = await h.build({
       config: {
+        // Tests keep every payout route covered (L46).
+        enabledPayoutRoutes: PAYOUT_ROUTE_IDS,
         authRecipient: RECIPIENT,
         webOrigin: "https://app.veylo.test",
         sessionTtlHours: 24,

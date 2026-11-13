@@ -1,3 +1,4 @@
+import { base64 } from "@scure/base";
 import { z } from "zod";
 import { NearRpcError } from "./near-rpc.js";
 
@@ -7,6 +8,8 @@ const viewResult = z.object({ result: z.object({ result: z.array(z.number().int(
 export type IntentsReader = {
   /** Read at runtime for the right chain, never hardcoded (L12). */
   currentSalt(verifier: string): Promise<string>;
+  /** Whether the key is registered for the account on the verifier (gate B2). */
+  hasPublicKey(verifier: string, accountId: string, publicKey: string): Promise<boolean>;
   /** The public Intents balance, in smallest units. */
   mtBalanceOf(verifier: string, accountId: string, tokenId: string): Promise<string>;
 };
@@ -31,7 +34,7 @@ export function createIntentsReader(options: {
             request_type: "call_function",
             account_id: verifier,
             method_name: method,
-            args_base64: Buffer.from(JSON.stringify(args)).toString("base64"),
+            args_base64: base64.encode(new TextEncoder().encode(JSON.stringify(args))),
           },
         }),
         signal: AbortSignal.timeout(options.timeoutMs ?? 5_000),
@@ -45,7 +48,7 @@ export function createIntentsReader(options: {
     const parsed = viewResult.safeParse(json);
     if (!parsed.success) throw new NearRpcError("NEAR RPC returned an unexpected response");
     try {
-      return JSON.parse(Buffer.from(parsed.data.result.result).toString());
+      return JSON.parse(new TextDecoder().decode(Uint8Array.from(parsed.data.result.result)));
     } catch {
       throw new NearRpcError("NEAR RPC returned an unexpected response");
     }
@@ -59,6 +62,15 @@ export function createIntentsReader(options: {
         .safeParse(await view(verifier, "current_salt", {}));
       if (!salt.success) throw new NearRpcError("the verifier returned an unexpected salt");
       return salt.data;
+    },
+    async hasPublicKey(verifier, accountId, publicKey) {
+      const registered = z
+        .boolean()
+        .safeParse(
+          await view(verifier, "has_public_key", { account_id: accountId, public_key: publicKey }),
+        );
+      if (!registered.success) throw new NearRpcError("the verifier returned an unexpected answer");
+      return registered.data;
     },
     async mtBalanceOf(verifier, accountId, tokenId) {
       const balance = z

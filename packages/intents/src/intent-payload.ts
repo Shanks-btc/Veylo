@@ -1,3 +1,4 @@
+import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import { base58, base64 } from "@scure/base";
 import { z } from "zod";
 import type { Nep413SignedData } from "./oneclick-treasury.js";
@@ -15,8 +16,8 @@ export function encodeVersionedNonce(input: {
   start: Date;
   random: Uint8Array;
 }): string {
-  const salt = Buffer.from(input.saltHex, "hex");
-  if (salt.length !== 4) throw new RangeError("the salt must be 4 bytes");
+  if (!/^[0-9a-fA-F]{8}$/.test(input.saltHex)) throw new RangeError("the salt must be 4 bytes");
+  const salt = hexToBytes(input.saltHex);
   if (input.random.length !== 7) throw new RangeError("the random part must be 7 bytes");
   const out = new Uint8Array(32);
   const view = new DataView(out.buffer);
@@ -39,8 +40,24 @@ export function nonceSaltHex(nonce: string): string | undefined {
   if (bytes.length !== 32 || MAGIC.some((b, i) => bytes[i] !== b) || bytes[4] !== VERSION) {
     return undefined;
   }
-  return Buffer.from(bytes.slice(5, 9)).toString("hex");
+  return bytesToHex(bytes.slice(5, 9));
 }
+
+/** The confidential verifier the treasury signs payouts for (S-E, T5c). */
+export const CONFIDENTIAL_VERIFIER = "intents.far";
+/** The public NEAR Intents verifier (T5 funding and payouts). */
+export const PUBLIC_VERIFIER = "intents.near";
+/** The only verifiers a payload may be signed for (L45). Anything else fails closed. */
+export const PINNED_VERIFIERS = [PUBLIC_VERIFIER, CONFIDENTIAL_VERIFIER] as const;
+export type PinnedVerifier = (typeof PINNED_VERIFIERS)[number];
+export const isPinnedVerifier = (v: string): v is PinnedVerifier =>
+  (PINNED_VERIFIERS as readonly string[]).includes(v);
+/**
+ * The confidential token's account part, pinned as observed (L36). Anything else is fail-closed.
+ * Shared by the API and the browser gate, so they can't disagree.
+ */
+export const CONFIDENTIAL_TOKEN_PREFIX =
+  "imt:51e8f94d77b5e90dc9852ca6113771e11e8382ce69473a75e313e41665de7cbe:";
 
 /** Wallet output (base64) to what 1Click takes (ed25519:base58), as proven in S-A and S-A2. */
 export function toSignedData(

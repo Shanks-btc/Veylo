@@ -173,7 +173,7 @@ const signedAsAttacker = () => ({
 });
 
 type Case = {
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   route: string;
   url: (orgId: string) => string;
   payload?: () => object;
@@ -324,6 +324,66 @@ const ORG_ROUTES: Case[] = [
     method: "POST",
     route: "/orgs/:orgId/pay-runs/:payRunId/quote",
     url: (o) => `/orgs/${o}/pay-runs/${payRunB}/quote`,
+  },
+  {
+    method: "GET",
+    route: "/orgs/:orgId/payee-registry/history",
+    url: (o) => `/orgs/${o}/payee-registry/history`,
+  },
+  { method: "GET", route: "/orgs/:orgId/settings", url: (o) => `/orgs/${o}/settings` },
+  {
+    method: "PATCH",
+    route: "/orgs/:orgId/settings",
+    url: (o) => `/orgs/${o}/settings`,
+    payload: () => ({ name: "Hacked" }),
+  },
+  {
+    method: "POST",
+    route: "/orgs/:orgId/pay-runs/:payRunId/items/:itemId/acknowledge",
+    url: (o) => `/orgs/${o}/pay-runs/${payRunB}/items/${payRunItemB}/acknowledge`,
+  },
+  {
+    method: "POST",
+    route: "/orgs/:orgId/contractors/import",
+    url: (o) => `/orgs/${o}/contractors/import`,
+    payload: () => ({ csv: "name,rate\nIntruder,1", save: true }),
+  },
+  {
+    method: "POST",
+    route: "/orgs/:orgId/contractors/:contractorId/invites",
+    url: (o) => `/orgs/${o}/contractors/${contractorB}/invites`,
+  },
+  {
+    method: "GET",
+    route: "/orgs/:orgId/contractors/:contractorId/address-changes",
+    url: (o) => `/orgs/${o}/contractors/${contractorB}/address-changes`,
+  },
+  {
+    method: "POST",
+    route: "/orgs/:orgId/contractors/:contractorId/address-changes/:requestId/apply",
+    url: (o) =>
+      `/orgs/${o}/contractors/${contractorB}/address-changes/99999999-9999-4999-8999-999999999999/apply`,
+  },
+  {
+    method: "GET",
+    route: "/orgs/:orgId/payroll-schedule",
+    url: (o) => `/orgs/${o}/payroll-schedule`,
+  },
+  {
+    method: "PUT",
+    route: "/orgs/:orgId/payroll-schedule",
+    url: (o) => `/orgs/${o}/payroll-schedule`,
+    payload: () => ({ kind: "biweekly", anchorDate: "2026-11-27", timeZone: "UTC" }),
+  },
+  {
+    method: "POST",
+    route: "/orgs/:orgId/payroll-schedule/pause",
+    url: (o) => `/orgs/${o}/payroll-schedule/pause`,
+  },
+  {
+    method: "POST",
+    route: "/orgs/:orgId/payroll-schedule/resume",
+    url: (o) => `/orgs/${o}/payroll-schedule/resume`,
   },
   {
     method: "POST",

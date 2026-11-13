@@ -1,3 +1,4 @@
+import { PAYOUT_ROUTE_IDS } from "@veylo/core";
 import { createHash } from "node:crypto";
 import { schema } from "@veylo/db";
 import { eq } from "drizzle-orm";
@@ -127,6 +128,8 @@ describe("POST /auth/verify success", () => {
     await base.close();
     const local = await h.build({
       config: {
+        // Tests keep every payout route covered (L46).
+        enabledPayoutRoutes: PAYOUT_ROUTE_IDS,
         authRecipient: RECIPIENT,
         webOrigin: "http://localhost:3000",
         sessionTtlHours: 24,

@@ -190,6 +190,49 @@ summary {
   align-items: center;
   gap: 8px;
 }
+/* The panel under the selected funding option (W7.3): it opens in place and is scrolled into view. */
+.fund-panel {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 88px;
+}
+.fund-panel:focus {
+  outline: none;
+}
+.fund-steps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+.copy-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.copy-value {
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--surface-soft);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.fund-advanced {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+}
+.fund-advanced summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.fund-advanced[open] summary {
+  margin-bottom: 12px;
+}
 
 /* --- Onboarding steps --- */
 .steps {
@@ -221,10 +264,20 @@ summary {
   font-weight: 600;
   grid-row: span 2;
 }
+/* A finished step shows the thin tick icon (a real element) in the same circle the number was in. */
 .steps li[data-state="success"]::before {
-  content: "✓";
+  content: none;
+}
+.steps .step-success {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   background: var(--success-tint);
   color: var(--success-text);
+  font-weight: 600;
+  grid-row: span 2;
 }
 .steps li[data-state="current"] {
   border-color: var(--accent-text);

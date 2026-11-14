@@ -10,7 +10,17 @@ function isOrigin(value: string): boolean {
 
 const envSchema = z.object({
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\/\S+$/),
-  ONECLICK_PARTNER_KEY: z.string().min(1),
+  /**
+   * Optional for the API and the settlement sweeps (W7): without it every live-quote feature says
+   * "Live quotes are not connected yet" and fails closed. The agent worker still requires it
+   * (loadWorkerConfig checks).
+   */
+  ONECLICK_PARTNER_KEY: z.string().min(1).optional(),
+  /**
+   * The shared secret Vercel Cron sends as `Authorization: Bearer <secret>` (W7). Every internal
+   * cron route checks it and refuses anything else. Absent: the cron routes are not served at all.
+   */
+  CRON_SECRET: z.string().min(32).max(256).optional(),
   NEARAI_API_KEY: z.string().regex(/^sk-\S+$/),
   /** API only: encrypts 1Click session tokens, read-only data (L31). */
   SESSION_ENCRYPTION_KEY: z.string().regex(/^[A-Za-z0-9+/]{43}=$/),
@@ -49,6 +59,7 @@ type EnvName = keyof z.infer<typeof envSchema>;
 const EXPECTED: Record<EnvName, string> = {
   DATABASE_URL: "a postgres:// or postgresql:// connection URL",
   ONECLICK_PARTNER_KEY: "the 1Click partner JWT from partners.near-intents.org",
+  CRON_SECRET: "a random secret of at least 32 characters (Vercel Cron sends it as a bearer token)",
   NEARAI_API_KEY: "a NEAR AI Cloud API key starting with sk-",
   SESSION_ENCRYPTION_KEY: "32 random bytes, base64 encoded (44 characters ending in =)",
   AGENT_KEY_MASTER_KEY: "32 random bytes, base64 encoded (44 characters ending in =)",
@@ -113,12 +124,17 @@ function load<K extends EnvName>(
     // The validator's error is dropped deliberately: only the names above leave this function.
     throw new ConfigError(service, problems);
   }
-  return Object.freeze(result.data) as Readonly<Pick<z.infer<typeof envSchema>, K>>;
+  // An optional setting that isn't set is absent, not present-and-undefined.
+  const present = Object.fromEntries(
+    Object.entries(result.data).filter(([, v]) => v !== undefined),
+  );
+  return Object.freeze(present) as Readonly<Pick<z.infer<typeof envSchema>, K>>;
 }
 
 const API = [
   "DATABASE_URL",
   "ONECLICK_PARTNER_KEY",
+  "CRON_SECRET",
   "SESSION_ENCRYPTION_KEY",
   "TREASURY_LIMIT_ORG_PER_HOUR",
   "TREASURY_LIMIT_USER_PER_HOUR",
@@ -162,7 +178,25 @@ const MIGRATIONS = ["DATABASE_URL"] as const;
 export const loadApiConfig = (env: Env = process.env) => load("api", API, env);
 
 /** The worker is the only process that decrypts agent keys and calls NEAR AI (ARCHITECTURE §2, §5). */
-export const loadWorkerConfig = (env: Env = process.env) => load("worker", WORKER, env);
+export const loadWorkerConfig = (env: Env = process.env) => {
+  let problems: readonly ConfigProblem[] = [];
+  let config: ReturnType<typeof load<(typeof WORKER)[number]>> | undefined;
+  try {
+    config = load("worker", WORKER, env);
+  } catch (err) {
+    if (!(err instanceof ConfigError)) throw err;
+    problems = err.problems;
+  }
+  // The agent worker has no "not connected" mode: the key is required for it (W7).
+  if (!env.ONECLICK_PARTNER_KEY?.trim()) {
+    problems = [
+      ...problems,
+      { name: "ONECLICK_PARTNER_KEY", problem: "missing", expected: EXPECTED.ONECLICK_PARTNER_KEY },
+    ];
+  }
+  if (problems.length > 0 || config === undefined) throw new ConfigError("worker", problems);
+  return config as typeof config & { ONECLICK_PARTNER_KEY: string };
+};
 
 /**
  * The settlement worker (slice 5b) is API-tier: it needs the session key to read balances and the

@@ -6,6 +6,7 @@ import { PAYOUT_ROUTES, ROUTE_AVAILABILITY } from "@veylo/core";
 import { useState, type FormEvent } from "react";
 import { ApiError } from "../api/client";
 import { Saved, LoadBlock } from "../app-ui/page-kit";
+import { recordStatus } from "../app-ui/plain";
 import { useApi, useSession } from "../app-ui/session";
 import { PageHeader } from "../app-ui/shell";
 import { Button, Field, fieldAria, Tag } from "../ui/basic";
@@ -109,7 +110,9 @@ function Address({ c }: { c: PortalContractor }) {
                   key: "status",
                   label: "Status",
                   render: (x) => (
-                    <Tag tone={x.status === "active" ? "success" : "neutral"}>{x.status}</Tag>
+                    <Tag tone={x.status === "active" ? "success" : "neutral"}>
+                      {recordStatus(x.status)}
+                    </Tag>
                   ),
                 },
               ]}

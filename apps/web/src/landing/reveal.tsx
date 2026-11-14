@@ -12,7 +12,7 @@ export function Reveal({
 }: {
   children: ReactNode;
   className?: string;
-  as?: "div" | "article";
+  as?: "div" | "article" | "li";
   /** For a block that scrolls sideways on a small screen: a keyboard can reach it, and it has a name. */
   scrollLabel?: string;
 }) {

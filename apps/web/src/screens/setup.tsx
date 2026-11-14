@@ -11,6 +11,7 @@ import { useSession } from "../app-ui/session";
 import { WalletPicker } from "../app-ui/wallet-picker";
 import { EMBEDDED_ID } from "../wallet/registry";
 import { Button, Field, fieldAria, Tag } from "../ui/basic";
+import { CheckMark } from "../ui/icon";
 import { AddressText, Card, useToast } from "../ui/interactive";
 import { QrCode } from "../ui/qr";
 
@@ -27,6 +28,11 @@ function Step({
 }) {
   return (
     <li data-state={state}>
+      {state === "success" ? (
+        <span className="step-success" aria-hidden="true">
+          <CheckMark />
+        </span>
+      ) : null}
       <h3>{title}</h3>
       <div className="step-action stack">
         {state === "success" ? <span className="muted small">Done</span> : children}
@@ -36,7 +42,7 @@ function Step({
 }
 
 export function SetupScreen() {
-  const { api, me, config, refreshMe, setOrgId, connectWallet, now } = useSession();
+  const { api, me, config, features, refreshMe, setOrgId, connectWallet, now } = useSession();
   const toast = useToast();
   const [name, setName] = useState("");
   const [error, setError] = useState<string>();
@@ -124,13 +130,22 @@ export function SetupScreen() {
 
       {me.user.email && !me.user.emailVerified ? (
         <div className="notice" role="status">
-          <p>
-            Confirm your email ({me.user.email}) with the link we sent. It is for notices and
-            signing in; it can&apos;t approve payments.
-          </p>
-          <Button variant="grey" small onClick={resend}>
-            Send me a new link
-          </Button>
+          {features.emailDelivery ? (
+            <>
+              <p>
+                Confirm your email ({me.user.email}) with the link we sent. It is for notices and
+                signing in; it can&apos;t approve payments.
+              </p>
+              <Button variant="grey" small onClick={resend}>
+                Send me a new link
+              </Button>
+            </>
+          ) : (
+            <p>
+              Your email ({me.user.email}) is saved for signing in and notices. Your account works
+              without confirming it, and it can&apos;t approve payments.
+            </p>
+          )}
         </div>
       ) : null}
 

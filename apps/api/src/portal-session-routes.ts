@@ -32,7 +32,7 @@ import {
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { parse, type Deps } from "./app.js";
-import { AppError, conflict, notFound } from "./errors.js";
+import { AppError, conflict, liveQuotesOff, notFound } from "./errors.js";
 import { createTreasuryLimiter } from "./rate-limit.js";
 
 /** Docs: recipient `intents.near`; the salt is read at runtime (L12). */
@@ -216,6 +216,7 @@ export async function portalSessionRoutes(app: FastifyInstance, deps: Deps, own:
       if (err instanceof OneClickError && err.kind === "rejected") {
         throw new AppError(422, "SESSION_REJECTED", err.detail);
       }
+      if (err instanceof OneClickError && err.kind === "not_connected") throw liveQuotesOff();
       throw new AppError(502, "ONECLICK_UNAVAILABLE", "1Click is not available. Try again");
     }
 

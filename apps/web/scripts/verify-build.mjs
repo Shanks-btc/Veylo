@@ -1,5 +1,10 @@
 // For `pnpm verify`: builds the static web app with placeholder public settings, applies the CSP,
 // then re-reads every page to prove each has the policy and every inline script is pinned.
+//
+// Hosted mode (slice W7): VEYLO_HOSTED=1 with VEYLO_WEB_ORIGIN, VEYLO_BRIDGE_ORIGIN and
+// VEYLO_API_ORIGIN builds with the real production origins instead of placeholders, and `--check-only`
+// re-reads an existing build (VEYLO_WEB_DIR and VEYLO_BRIDGE_DIR name the folders, which is how the
+// folders that are about to be deployed get checked without building again).
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -9,35 +14,78 @@ import { fileURLToPath } from "node:url";
 import { bridgePolicy, embeddedPolicy } from "./bridge-csp.mjs";
 
 const web = fileURLToPath(new URL("..", import.meta.url));
-const env = {
-  ...process.env,
-  NEXT_TELEMETRY_DISABLED: "1",
-  NEXT_PUBLIC_API_ORIGIN: "https://api.veylo.invalid",
-  NEXT_PUBLIC_NEAR_RPC_URL: "https://rpc.fastnear.com",
-  NEXT_PUBLIC_AUTH_RECIPIENT: "veylo.invalid",
-  NEXT_PUBLIC_PAYOUT_QUOTE_DEADLINE_MINUTES: "15",
-  NEXT_PUBLIC_SITE_ORIGIN: "https://veylo.invalid",
-  NEXT_PUBLIC_WALLET_BRIDGE_ORIGIN: "https://wallet.veylo.invalid",
-  BRIDGE_APP_ORIGIN: "https://app.veylo.invalid",
+const HOSTED = process.env.VEYLO_HOSTED === "1";
+const CHECK_ONLY = process.argv.includes("--check-only");
+const hostedOrigin = (name) => {
+  const value = process.env[name];
+  let ok = false;
+  try {
+    const u = new URL(value ?? "");
+    ok = u.origin === value && u.protocol === "https:" && !/^(localhost|127\.|\[)/.test(u.hostname);
+  } catch {
+    // Not a URL: reported below.
+  }
+  if (!ok) {
+    console.error(`verify-build: ${name} must be an https origin that isn't local, with no path`);
+    process.exit(1);
+  }
+  return value;
 };
+const hosted = HOSTED
+  ? {
+      web: hostedOrigin("VEYLO_WEB_ORIGIN"),
+      bridge: hostedOrigin("VEYLO_BRIDGE_ORIGIN"),
+      api: hostedOrigin("VEYLO_API_ORIGIN"),
+    }
+  : undefined;
+const env = hosted
+  ? {
+      ...process.env,
+      NEXT_TELEMETRY_DISABLED: "1",
+      // The web origin forwards /api to the API, so the sign-in cookie stays first-party (W7).
+      NEXT_PUBLIC_API_ORIGIN: hosted.web,
+      NEXT_PUBLIC_API_BASE_PATH: "/api",
+      NEXT_PUBLIC_NEAR_RPC_URL: "https://rpc.fastnear.com",
+      NEXT_PUBLIC_AUTH_RECIPIENT: new URL(hosted.web).host,
+      NEXT_PUBLIC_PAYOUT_QUOTE_DEADLINE_MINUTES: "15",
+      NEXT_PUBLIC_SITE_ORIGIN: hosted.web,
+      NEXT_PUBLIC_WALLET_BRIDGE_ORIGIN: hosted.bridge,
+      BRIDGE_APP_ORIGIN: hosted.web,
+    }
+  : {
+      ...process.env,
+      NEXT_TELEMETRY_DISABLED: "1",
+      NEXT_PUBLIC_API_ORIGIN: "https://api.veylo.invalid",
+      NEXT_PUBLIC_NEAR_RPC_URL: "https://rpc.fastnear.com",
+      NEXT_PUBLIC_AUTH_RECIPIENT: "veylo.invalid",
+      NEXT_PUBLIC_PAYOUT_QUOTE_DEADLINE_MINUTES: "15",
+      NEXT_PUBLIC_SITE_ORIGIN: "https://veylo.invalid",
+      NEXT_PUBLIC_WALLET_BRIDGE_ORIGIN: "https://wallet.veylo.invalid",
+      BRIDGE_APP_ORIGIN: "https://app.veylo.invalid",
+    };
+// The bridge is told the real API origin only so it can prove it never reaches it.
+const bridgeEnv = hosted ? { ...env, NEXT_PUBLIC_API_ORIGIN: hosted.api } : env;
 const nextBin = join(
   dirname(createRequire(join(web, "package.json")).resolve("next/package.json")),
   "dist",
   "bin",
   "next",
 );
-const step = (args) => {
-  const r = spawnSync(process.execPath, args, { cwd: web, env, stdio: "inherit" });
+const step = (args, stepEnv = env) => {
+  const r = spawnSync(process.execPath, args, { cwd: web, env: stepEnv, stdio: "inherit" });
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
-step([join(web, "scripts", "gen-tokens.mjs")]);
-step([join(web, "scripts", "fonts.mjs")]);
-step([join(web, "scripts", "images.mjs")]);
-step([nextBin, "build", "--webpack"]);
-step([join(web, "scripts", "csp.mjs")]);
-step([join(web, "scripts", "build-bridge.mjs")]);
+if (!CHECK_ONLY) {
+  step([join(web, "scripts", "gen-tokens.mjs")]);
+  step([join(web, "scripts", "fonts.mjs")]);
+  step([join(web, "scripts", "images.mjs")]);
+  step([nextBin, "build", "--webpack"]);
+  step([join(web, "scripts", "csp.mjs")]);
+  step([join(web, "scripts", "build-bridge.mjs")], bridgeEnv);
+}
 
-const out = join(web, "out");
+const out = process.env.VEYLO_WEB_DIR ?? join(web, "out");
+const bridgeOut = process.env.VEYLO_BRIDGE_DIR ?? join(web, "out-bridge");
 let pages = 0;
 const walk = (dir) => {
   for (const name of readdirSync(dir)) {
@@ -75,7 +123,7 @@ function scan(dir) {
   }
 }
 scan(out);
-scan(join(web, "out-bridge"));
+scan(bridgeOut);
 
 // The demo world (src/demo) must never reach a production build: it carries a marker string, a
 // throwaway signing key and a recorded quote, and its stand-in wallet signs without asking.
@@ -87,7 +135,21 @@ function noDemo(dir) {
       throw new Error(`${path}: the demo world is in a production build`);
   }
 }
+// No page may carry the old demo banner either (it was removed from the whole app).
+function noBanner(dir) {
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) noBanner(path);
+    else if (
+      /\.(js|html|css)$/.test(name) &&
+      /Made-up people and amounts|demo-banner/.test(readFileSync(path, "utf8"))
+    )
+      throw new Error(`${path}: the demo banner is in the build`);
+  }
+}
 noDemo(out);
+noBanner(out);
+noBanner(bridgeOut);
 if (pages === 0) throw new Error("no pages built");
 
 // ---- Slice W6: every page, every wallet's bridge page, every pinned executor ----
@@ -134,7 +196,6 @@ for (const route of REQUIRED_PAGES)
   if (!hasPage(out, route)) throw new Error(`the build has no page for /${route}`);
 
 const lock = JSON.parse(readFileSync(join(web, "src", "wallet", "wallets.lock.json"), "utf8"));
-const bridgeOut = join(web, "out-bridge");
 const policyOf = (file) => {
   const m = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(
     readFileSync(file, "utf8"),
@@ -149,7 +210,7 @@ for (const w of lock.wallets.filter((x) => x.enabled)) {
   const expected = bridgePolicy({
     appOrigin: env.BRIDGE_APP_ORIGIN,
     nearRpcUrl: env.NEXT_PUBLIC_NEAR_RPC_URL,
-    apiOrigin: env.NEXT_PUBLIC_API_ORIGIN,
+    apiOrigin: bridgeEnv.NEXT_PUBLIC_API_ORIGIN,
     wallet: w,
   }).meta;
   const policy = policyOf(page);
@@ -166,12 +227,29 @@ for (const w of lock.wallets.filter((x) => x.enabled)) {
     throw new Error(`${w.id}: the served executor's hash is not its pin`);
   wallets += 1;
 }
+// Nothing else is served from /wallets/: every file there is the pinned executor of a wallet in the
+// lock (a stale file from an old build would otherwise ship, byte for byte pinned or not).
+{
+  const pinned = new Set(lock.wallets.map((x) => x.executor?.file).filter(Boolean));
+  const served = existsSync(join(bridgeOut, "wallets"))
+    ? readdirSync(join(bridgeOut, "wallets"))
+    : [];
+  const extra = served.filter((name) => !pinned.has(name));
+  if (extra.length > 0)
+    throw new Error(`the bridge serves files that are not pinned executors: ${extra.join(", ")}`);
+}
 // No catch-all header rule: it would also match /w/ and /embedded/ and could replace the Veylo wallet
 // page's passkey permission, depending on how a host orders duplicate headers.
 const bridgeRules = JSON.parse(readFileSync(join(bridgeOut, "vercel.json"), "utf8")).headers;
-if (bridgeRules.some((r) => r.source === "/(.*)")) throw new Error("the bridge's headers have a catch-all rule");
-const passkeyRules = bridgeRules.filter((r) => r.headers.some((h) => h.key === "Permissions-Policy" && h.value.includes("publickey-credentials")));
-if (passkeyRules.length !== 1 || passkeyRules[0].source !== "/embedded/(.*)") throw new Error("only the Veylo wallet page may be allowed passkeys");
+if (bridgeRules.some((r) => r.source === "/(.*)"))
+  throw new Error("the bridge's headers have a catch-all rule");
+const passkeyRules = bridgeRules.filter((r) =>
+  r.headers.some(
+    (h) => h.key === "Permissions-Policy" && h.value.includes("publickey-credentials"),
+  ),
+);
+if (passkeyRules.length !== 1 || passkeyRules[0].source !== "/embedded/(.*)")
+  throw new Error("only the Veylo wallet page may be allowed passkeys");
 // The Veylo wallet page: no network of any kind.
 const embedded = policyOf(join(bridgeOut, "embedded", "index.html"));
 if (embedded !== embeddedPolicy({ appOrigin: env.BRIDGE_APP_ORIGIN }).meta)
@@ -183,6 +261,36 @@ const appPolicy = policyOf(join(out, "index.html"));
 for (const w of lock.wallets.filter((x) => x.enabled))
   for (const host of w.allow?.connect ?? [])
     if (appPolicy.includes(host)) throw new Error(`the app's CSP names ${host}, a host of ${w.id}`);
+
+// ---- Slice W7: a hosted build names only its three real origins ----
+if (hosted) {
+  const everyFile = (dir) =>
+    readdirSync(dir).flatMap((name) => {
+      const path = join(dir, name);
+      return statSync(path).isDirectory() ? (name === "wallets" ? [] : everyFile(path)) : [path];
+    });
+  for (const dir of [out, bridgeOut]) {
+    for (const file of everyFile(dir)) {
+      if (!/\.(html|js|json|css|txt|xml)$/.test(file)) continue;
+      const text = readFileSync(file, "utf8");
+      // The placeholder origins of pnpm verify, or a hash-addressed team URL, must never ship.
+      if (/veylo\.invalid|[a-z0-9-]+-[a-z0-9]{8,}-[a-z0-9-]+\.vercel\.app/.test(text))
+        throw new Error(`${file}: names a placeholder or a team-scoped deployment URL`);
+    }
+  }
+  const rules = existsSync(join(out, "vercel.json"))
+    ? JSON.parse(readFileSync(join(out, "vercel.json"), "utf8"))
+    : undefined;
+  if (rules?.rewrites) {
+    const targets = rules.rewrites.map((r) => r.destination);
+    if (
+      targets.length !== 1 ||
+      targets[0] !== `${hosted.api}/:path*` ||
+      rules.rewrites[0].source !== "/api/:path*"
+    )
+      throw new Error("the web project may forward only /api/* to the API origin");
+  }
+}
 
 console.log(
   `web build: ${pages} page(s), every inline script pinned; ${REQUIRED_PAGES.length} required pages; ${wallets} wallet bridge page(s) with their reviewed policy and pinned executor`,

@@ -1,5 +1,5 @@
 // Presentational components. No inline styles anywhere: the CSP is style-src 'self'.
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, MouseEventHandler, ReactNode } from "react";
 import { Icon, type IconName } from "./icon";
 
 type ButtonVariant = "dark" | "grey" | "light" | "ghost-dark";
@@ -29,16 +29,18 @@ export function ButtonLink({
   small = false,
   children,
   className = "",
+  onClick,
 }: {
   href: string;
   variant?: ButtonVariant;
   small?: boolean;
   children: ReactNode;
   className?: string;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
 }) {
   const cls = ["btn", `btn-${variant}`, small && "btn-sm", className].filter(Boolean).join(" ");
   return (
-    <a className={cls} href={href}>
+    <a className={cls} href={href} onClick={onClick}>
       {children}
     </a>
   );
@@ -202,8 +204,11 @@ export function SolidIcon({
   );
 }
 
-/** The placeholder mark (L42). Replace it here, in one place, when the real logo arrives. */
-export function Logo({ label = true }: { label?: boolean }) {
+/**
+ * The placeholder mark (L42). Replace it here, in one place, when the real logo arrives. `plain` leaves
+ * out the amber veil stroke, for a place where amber is reserved for something else.
+ */
+export function Logo({ label = true, plain = false }: { label?: boolean; plain?: boolean }) {
   return (
     <span className="logo">
       <svg width="26" height="22" viewBox="0 0 26 22" aria-hidden="true" focusable="false">
@@ -215,7 +220,9 @@ export function Logo({ label = true }: { label?: boolean }) {
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path className="logo-veil" d="M7.5 2h11" strokeWidth="3.2" strokeLinecap="round" />
+        {plain ? null : (
+          <path className="logo-veil" d="M7.5 2h11" strokeWidth="3.2" strokeLinecap="round" />
+        )}
       </svg>
       {label ? "veylo" : <span className="sr-only">Veylo</span>}
     </span>

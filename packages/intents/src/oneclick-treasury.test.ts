@@ -111,6 +111,32 @@ describe("the live-quote guard (L30)", () => {
       });
     });
 
+    it("works without a partner key (W7.3): no x-api-key and no authorization header is sent", async () => {
+      // 1Click serves a funding quote and a deposit's status to a caller with no key (a higher fee
+      // applies, docs.near-intents.org/resources/fees); the payout paths stay behind the key.
+      const replies = [
+        fx("funding-dry"),
+        fx("funding-live"),
+        { status: 200, body: { status: "PENDING_DEPOSIT" } },
+      ];
+      const sent: { url: string; headers: Record<string, string> }[] = [];
+      const keyless = createOneClickTreasuryClient({
+        fetch: (async (url: string, init: RequestInit) => {
+          sent.push({ url, headers: (init.headers ?? {}) as Record<string, string> });
+          const reply = replies.shift()!;
+          return new Response(JSON.stringify(reply.body), { status: reply.status });
+        }) as unknown as typeof globalThis.fetch,
+      });
+      const live = await keyless.createFundingQuote(funding());
+      expect(live.depositAddress).toBeTruthy();
+      await keyless.status(live.depositAddress!);
+      expect(sent.length).toBeGreaterThanOrEqual(3);
+      for (const s of sent) {
+        expect(Object.keys(s.headers).map((h) => h.toLowerCase())).not.toContain("x-api-key");
+        expect(Object.keys(s.headers).map((h) => h.toLowerCase())).not.toContain("authorization");
+      }
+    });
+
     it("a refused dry quote never reaches live", async () => {
       const refused = { status: 400, body: { message: "recipient is not valid" } };
       const { client, sent } = queue(refused);

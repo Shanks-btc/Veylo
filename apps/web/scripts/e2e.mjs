@@ -268,9 +268,7 @@ try {
     await page.waitForTimeout(4000);
     results.motion = await page.evaluate(() => ({
       runningAnimations: document.getAnimations().filter((a) => a.playState === "running").length,
-      marquee: getComputedStyle(document.querySelector(".mq-track")).animationName,
       staticFrameShown: !document.querySelector(".hero-frame")?.classList.contains("is-hidden"),
-      countUpFinal: document.querySelector(".sbig span")?.textContent,
     }));
     await ctx.close();
   }

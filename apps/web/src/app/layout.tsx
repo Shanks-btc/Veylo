@@ -7,7 +7,6 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { preload } from "react-dom";
 import { EARLY_FONTS, fontUrl } from "../design/fonts";
-import { DemoBanner } from "../ui/demo-banner";
 import { LateFonts } from "../ui/late-fonts";
 import { color } from "../design/tokens";
 import { siteOrigin } from "../site";
@@ -27,7 +26,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <DemoBanner />
         {children}
         <LateFonts />
       </body>

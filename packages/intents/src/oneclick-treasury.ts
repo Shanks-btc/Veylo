@@ -8,7 +8,7 @@ import { ONECLICK_QUOTE_KEY, verifyQuoteSignature } from "./quote-signature.js";
 
 export class OneClickError extends Error {
   constructor(
-    readonly kind: "unavailable" | "unauthorized" | "rejected" | "unexpected",
+    readonly kind: "unavailable" | "unauthorized" | "rejected" | "unexpected" | "not_connected",
     /** Safe to show: 1Click's own refusal message, or our own text. Never a token. */
     readonly detail: string,
   ) {
@@ -114,7 +114,12 @@ export type PayoutQuote = {
 export type OneClickTreasuryClient = ReturnType<typeof createOneClickTreasuryClient>;
 
 export function createOneClickTreasuryClient(options: {
-  apiKey: string;
+  /**
+   * The partner key. Without it the client still works for what 1Click serves keyless: a funding
+   * quote and the status of a deposit (see docs/FUNDING.md). The deployment decides which calls it
+   * exposes without a key (apps/api/src/oneclick-clients.ts).
+   */
+  apiKey?: string | undefined;
   fetch: typeof globalThis.fetch;
   baseUrl?: string;
   timeoutMs?: number;
@@ -137,8 +142,9 @@ export function createOneClickTreasuryClient(options: {
         method: init.method,
         headers: {
           ...(init.body === undefined ? {} : { "content-type": "application/json" }),
-          // The status endpoint returned 404 without the partner key in T5b.
-          "x-api-key": options.apiKey,
+          // The status endpoint returned 404 without the partner key in T5b, for a deposit quoted with
+          // the key; a deposit quoted without one reads back without one (W7.3).
+          ...(options.apiKey ? { "x-api-key": options.apiKey } : {}),
           ...(init.bearer ? { authorization: `Bearer ${init.bearer}` } : {}),
         },
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
@@ -322,7 +328,7 @@ export function createOneClickTreasuryClient(options: {
     try {
       const response = await options.fetch(`${base}/v0/tokens`, {
         method: "GET",
-        headers: { "x-api-key": options.apiKey },
+        headers: options.apiKey ? { "x-api-key": options.apiKey } : {},
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) throw new Error("status");

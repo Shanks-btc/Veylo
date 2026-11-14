@@ -22,3 +22,7 @@ export const conflict = (code: string, message: string) => new AppError(409, cod
 /** A payout route outside the enabled scope (L46): disabled, or waiting on a spike. */
 export const routeDisabled = () =>
   new AppError(400, "ROUTE_NOT_ENABLED", "This payout route isn't available. Use a NEAR route.");
+
+/** No 1Click partner key is set on this deployment (W7): every live quote fails closed with this. */
+export const liveQuotesOff = () =>
+  new AppError(503, "LIVE_QUOTES_OFF", "Live quotes are not connected yet");

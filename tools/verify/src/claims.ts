@@ -19,3 +19,27 @@ export function findClaims(text: string): string[] {
     .filter(({ line }) => CLAIM_PATTERNS.some((p) => p.test(line)))
     .map(({ line, at }) => `line ${at}: ${line.trim().slice(0, 100)}`);
 }
+
+/**
+ * Things Veylo does not offer (slice W7.1): no yield, APY, interest, card, Visa, bank or off-ramp. The
+ * words below must not appear in user-facing copy at all. (The problem section's "Bank wires take days"
+ * describes the old way of paying abroad; it says nothing about what Veylo offers.)
+ */
+export const NOT_OFFERED_PATTERNS: readonly RegExp[] = [
+  /\bAPY\b/i,
+  /\byields?\b/i,
+  /\binterest\b/i,
+  /\bvisa\b/i,
+  /\bdebit[- ]cards?\b/i,
+  /\boff-?ramps?\b/i,
+];
+
+/** Every line of `text` that uses one of those words (comment-only lines are skipped). */
+export function findNotOffered(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line, i) => ({ line, at: i + 1 }))
+    .filter(({ line }) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+    .filter(({ line }) => NOT_OFFERED_PATTERNS.some((p) => p.test(line)))
+    .map(({ line, at }) => `line ${at}: ${line.trim().slice(0, 100)}`);
+}

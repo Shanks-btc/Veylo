@@ -13,6 +13,7 @@ import { Estimate, FxNote } from "../app-ui/fx";
 import { ErrorNote, NeedsOrg, PageHeader } from "../app-ui/shell";
 import { useApi, useQueryParam, useSession, webConfig, useOrg } from "../app-ui/session";
 import { RouteTag, routeLabel } from "../app-ui/format";
+import { payableReason, recordStatus } from "../app-ui/plain";
 import { Button, ButtonLink, EmptyState, Field, Skeleton, Tag } from "../ui/basic";
 import { Table } from "../ui/data";
 import { AddressText, Card, Modal, useToast } from "../ui/interactive";
@@ -242,7 +243,11 @@ function Detail({ orgId, contractorId }: { orgId: string; contractorId: string }
               render: (r) => <RouteTag mode={r.payoutMode} routeId={r.route} />,
             },
             { key: "address", label: "Address", render: (r) => <AddressText value={r.address} /> },
-            { key: "status", label: "Status", render: (r) => <Tag tone="neutral">{r.status}</Tag> },
+            {
+              key: "status",
+              label: "Status",
+              render: (r) => <Tag tone="neutral">{recordStatus(r.status)}</Tag>,
+            },
             {
               key: "payable",
               label: "Payable",
@@ -250,7 +255,7 @@ function Detail({ orgId, contractorId }: { orgId: string; contractorId: string }
                 r.payable ? (
                   <Tag tone="success">Payable</Tag>
                 ) : (
-                  <span className="small muted">{r.payableReason.replaceAll("_", " ")}</span>
+                  <span className="small muted">{payableReason(r.payableReason)}</span>
                 ),
             },
             {

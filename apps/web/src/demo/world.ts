@@ -33,6 +33,7 @@ import {
   DEMO_SETTINGS,
   demoImportCheck,
 } from "./fixtures-w6";
+import fundingFile from "./recorded/funding-usdt-bsc.json";
 import payloadFile from "./recorded/payload-t5b.json";
 import quoteFile from "./recorded/quote-t5b.json";
 
@@ -296,8 +297,18 @@ export function createDemoWorld() {
   let signed = store.get();
   let clockStart = Date.now();
   const quoteTime = Date.parse(QUOTE.timestamp);
+  /**
+   * The recorded funding quote was signed at a different moment than the recorded payout quote, and
+   * gate F refuses a quote that is not fresh. While the funding quote is on screen the demo clock is
+   * just after it; the next payout check puts the clock back (clockStart is reset there).
+   */
+  let fundingShownAt: number | undefined;
+  const fundingTime = Date.parse(fundingFile.body.timestamp);
   /** Just after the recorded quote, ticking in real time; reset on every fresh check. */
-  const now = () => new Date(quoteTime + 2 * 60_000 + (Date.now() - clockStart));
+  const now = () =>
+    fundingShownAt !== undefined
+      ? new Date(fundingTime + 60_000 + (Date.now() - fundingShownAt))
+      : new Date(quoteTime + 2 * 60_000 + (Date.now() - clockStart));
 
   const quoteBody = () => {
     const q = structuredClone(QUOTE);
@@ -459,6 +470,11 @@ export function createDemoWorld() {
 
   const routes: [RegExp, (m: RegExpMatchArray, method: string, body: unknown) => Response][] = [
     [/^\/fx$/, () => json(200, DEMO_FX)],
+    // The local demo sends no email and has no 1Click behind it: it says so (W7).
+    [
+      /^\/features$/,
+      () => json(200, { emailDelivery: false, liveQuotes: true, fundingQuotes: true }),
+    ],
     [
       /^\/orgs\/[^/]+\/settings$/,
       () =>
@@ -469,6 +485,72 @@ export function createDemoWorld() {
         }),
     ],
     [/\/payroll-schedule$/, () => json(200, DEMO_SCHEDULE)],
+    // The treasury's balances: a public one, and a private one that needs the wallet's read-only
+    // session first (the plain-words screens for exactly this case, W7.3).
+    [
+      /\/treasury\/balances$/,
+      () =>
+        json(200, {
+          treasuryAccountId: DEMO_TREASURY,
+          public: {
+            available: true,
+            tokenId: "demo",
+            amount: "20000000000",
+            source: "demo",
+            asOf: AT,
+          },
+          confidential: {
+            available: false,
+            unavailable: "needs_session",
+            source: "demo",
+            asOf: AT,
+          },
+        }),
+    ],
+    // A funding quote: the recorded, really signed USDT-on-BNB-Smart-Chain quote (T5, 2026-11-05) for
+    // the demo treasury, so gate F verifies it in the browser exactly as it would a live one.
+    [
+      /\/treasury\/funding-quote$/,
+      (_m, method) => {
+        if (method !== "POST") return error(405, "METHOD", "POST only");
+        const body = fundingFile.body as unknown as {
+          quote: Record<string, string>;
+          quoteRequest: Record<string, string>;
+        };
+        const q = body.quote;
+        fundingShownAt = Date.now();
+        return json(201, {
+          eventId: "88888888-8888-4888-8888-888888888888",
+          depositAddress: q.depositAddress,
+          amountToSend: q.amountIn,
+          amountToSendFormatted: q.amountInFormatted,
+          asset: "USDT",
+          verification: "live",
+          network: "BNB Smart Chain",
+          deadline: q.deadline,
+          minimumReceived: q.minAmountOut,
+          originId: "usdt-bsc",
+          convertsToUsdc: true,
+          amountOut: q.amountOut,
+          amountOutFormatted: q.amountOutFormatted,
+          amountInUsd: q.amountInUsd,
+          amountOutUsd: q.amountOutUsd,
+          treasuryAccountId: DEMO_TREASURY,
+          refundAddress: body.quoteRequest.refundTo,
+          signedQuote: body,
+          summary: "Recorded quote (demo).",
+        });
+      },
+    ],
+    [
+      /\/treasury\/events\/[^/]+\/refresh$/,
+      () =>
+        json(200, {
+          eventId: "88888888-8888-4888-8888-888888888888",
+          status: "PENDING_DEPOSIT",
+          statusHistory: [{ status: "PENDING_DEPOSIT", at: AT }],
+        }),
+    ],
     [/\/members$/, () => json(200, { members: DEMO_MEMBERS(DEMO_TREASURY) })],
     [/\/audit$/, () => json(200, { items: DEMO_AUDIT, nextCursor: null })],
     [/\/payee-registry\/history$/, () => json(200, { versions: [registry(tampered)] })],
@@ -670,6 +752,7 @@ export function createDemoWorld() {
         if (method !== "POST") return error(405, "METHOD", "POST only");
         if (m[1] !== ITEM_OPEN) return error(409, "NOT_QUOTED", "This payout can't be signed now");
         clockStart = Date.now(); // each fresh check gets a fresh signing window
+        fundingShownAt = undefined;
         return json(201, {
           requestId: "77777777-7777-4777-8777-777777777777",
           payload: PAYLOAD,
@@ -776,7 +859,7 @@ export function createDemoWorld() {
     const mode = demoMode();
     const plumbing = /^\/(auth\/|me$)/.test(path);
     if (mode === "slow" && !plumbing) await new Promise((done) => setTimeout(done, 4000));
-    if (mode === "fail" && method === "GET" && !plumbing && path !== "/fx")
+    if (mode === "fail" && method === "GET" && !plumbing && path !== "/fx" && path !== "/features")
       return error(503, "UNAVAILABLE", "Veylo's server isn't answering right now");
     if (mode === "empty" && method === "GET") {
       const none = emptyFor(path);

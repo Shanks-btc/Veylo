@@ -94,3 +94,35 @@ describe("typed API client", () => {
     expect(() => buildPath("/orgs/:orgId", {})).toThrow(ApiContractError);
   });
 });
+
+describe("the API base path (W7)", () => {
+  const WEB = "https://veylopay.vercel.app";
+  it("puts every request under the prefix and keeps the cookie on the web origin", async () => {
+    const fetch = reply({ id: ORG, name: "Acme", treasuryAccountId: "acme.near" });
+    const api = createApiClient({ origin: WEB, basePath: "/api", fetch: fetch as never });
+    await api.call("GET /orgs/:orgId", { params: { orgId: ORG } });
+    const [url, init] = fetch.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(url)).toBe(`${WEB}/api/orgs/${ORG}`);
+    expect(init.credentials).toBe("include");
+  });
+
+  it("refuses a prefix that is not plain segments", () => {
+    for (const bad of ["api", "/api/", "//evil.example", "/a b", "/../x", "/api?x=1", "/api#x"]) {
+      expect(() =>
+        createApiClient({ origin: WEB, basePath: bad, fetch: reply({}) as never }),
+      ).toThrow();
+    }
+  });
+
+  it("a dot segment can't climb out of the prefix", () => {
+    expect(() => buildPath("/orgs/:orgId", { orgId: ".." })).toThrow(ApiContractError);
+    expect(() => buildPath("/orgs/:orgId", { orgId: "." })).toThrow(ApiContractError);
+  });
+
+  it("with no prefix it behaves as before", async () => {
+    const fetch = reply({ status: "ok" });
+    const api = createApiClient({ origin: ORIGIN, fetch: fetch as never });
+    await api.call("GET /health");
+    expect(String((fetch.mock.calls[0] as unknown as [URL])[0])).toBe(`${ORIGIN}/health`);
+  });
+});

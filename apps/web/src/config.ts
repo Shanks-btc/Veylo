@@ -13,6 +13,11 @@ const origin = z.string().refine((v) => {
 export const webConfigSchema = z.object({
   /** The API's origin, such as https://api.veylo.app. Same site as the web app (L23). */
   apiOrigin: origin,
+  /**
+   * A path the API is served under on that origin (W7), such as /api, or none. The hosted web
+   * origin forwards it to the API so the sign-in cookie stays first-party.
+   */
+  apiBasePath: z.string().regex(/^(\/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*$/),
   /** NEAR RPC, called straight from the browser by the gates (T-2), never via the API. */
   nearRpcUrl: z.string().regex(/^https:\/\/\S+$/),
   /** Archival NEAR RPC, read-only, for the proof and verify pages (old transactions). */
@@ -29,6 +34,7 @@ export type WebConfig = z.infer<typeof webConfigSchema>;
 export function loadWebConfig(env: Record<string, string | undefined>): WebConfig {
   return webConfigSchema.parse({
     apiOrigin: env.NEXT_PUBLIC_API_ORIGIN,
+    apiBasePath: env.NEXT_PUBLIC_API_BASE_PATH ?? "",
     nearRpcUrl: env.NEXT_PUBLIC_NEAR_RPC_URL ?? "https://rpc.fastnear.com",
     nearArchivalRpcUrl:
       env.NEXT_PUBLIC_NEAR_ARCHIVAL_RPC_URL ?? "https://archival-rpc.mainnet.fastnear.com",

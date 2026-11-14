@@ -23,7 +23,6 @@ export const color = {
   private: "#F5B94A",
   privateInk: "#7A5200",
   privateLight: "#F8D38E",
-  privateMarquee: "#8F6210",
   privateTileFrom: "#FFD27A",
   privateTileTo: "#E0961A",
   // Success green. `successInk` is text on light; `successOnDark` is text on dark.

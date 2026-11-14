@@ -1,0 +1,64 @@
+{
+  "source": "verification/results/T5-fund-live-quote.json (dev treasury, public data; secrets redacted at capture)",
+  "status": 201,
+  "request": {
+    "dry": false,
+    "swapType": "EXACT_INPUT",
+    "slippageTolerance": 100,
+    "originAsset": "nep245:v2_1.omni.hot.tg:56_2CMMyVTGZkeyNZTSvS5sarzfir6g",
+    "depositType": "ORIGIN_CHAIN",
+    "destinationAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "amount": "2000000000000000000",
+    "recipient": "a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce",
+    "recipientType": "INTENTS",
+    "refundTo": "0xAf780910c0E7D41430D4615A437676a87a332C8C",
+    "refundType": "ORIGIN_CHAIN",
+    "deadline": "2026-11-05T15:41:27.252Z"
+  },
+  "body": {
+    "quote": {
+      "amountIn": "2000000000000000000",
+      "amountInFormatted": "2.0",
+      "amountInUsd": "1.999004000000",
+      "minAmountIn": "2000000000000000000",
+      "amountOut": "1997841",
+      "amountOutFormatted": "1.997841",
+      "amountOutUsd": "1.997591269875",
+      "minAmountOut": "1977862",
+      "timeEstimate": 35,
+      "refundFee": "9117009117009118",
+      "withdrawFee": "0",
+      "deadline": "2026-11-08T15:41:27.252Z",
+      "timeWhenInactive": "2026-11-08T15:41:27.252Z",
+      "depositAddress": "0x11d0411de9b6c725D94aF2d24fC6A6cF4F11bE84"
+    },
+    "quoteRequest": {
+      "dry": false,
+      "depositMode": "SIMPLE",
+      "swapType": "EXACT_INPUT",
+      "slippageTolerance": 100,
+      "originAsset": "nep245:v2_1.omni.hot.tg:56_2CMMyVTGZkeyNZTSvS5sarzfir6g",
+      "depositType": "ORIGIN_CHAIN",
+      "destinationAsset": "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+      "amount": "2000000000000000000",
+      "refundTo": "0xAf780910c0E7D41430D4615A437676a87a332C8C",
+      "refundType": "ORIGIN_CHAIN",
+      "recipient": "a87a0e4f93085edbe787aa4530021045f426c8fbc500a7c1dbd729dc4f8151ce",
+      "recipientType": "INTENTS",
+      "deadline": "2026-11-05T15:41:27.252Z",
+      "confidentiality": "public",
+      "quoteWaitingTimeMs": 0,
+      "insured": false,
+      "appFees": [
+        {
+          "recipient": "5880ad2b362620fadf759cbceb1cd5737ce8c6ed7fb8e9942881e6731f9247dd",
+          "fee": 1,
+          "limitOrderId": null
+        }
+      ]
+    },
+    "signature": "ed25519:5YadwdZqnwdDJNJswF4un5wANWCaAtZSSW6L32TvvtfpfRi3hBR1awhRpLtEowkndKd8EExQrrUyuZxhAozjg32t",
+    "timestamp": "2026-11-05T15:11:28.874Z",
+    "correlationId": "b493d63b-c942-4786-bca9-84ab91ecf8c1"
+  }
+}

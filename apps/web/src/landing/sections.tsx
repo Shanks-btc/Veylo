@@ -4,12 +4,9 @@ import { Picture } from "../ui/data";
 import { Icon } from "../ui/icon";
 import { Card } from "../ui/card";
 import { HeroGlobe } from "./globe";
+import { Preview, TrustLine } from "./hero-extras";
 import { Reveal } from "./reveal";
 import { Story } from "./story";
-
-/** The privacy condition, in full, wherever "private" is claimed (as in the reference). */
-export const PRIVACY_CONDITION =
-  "Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it.";
 
 export function Hero() {
   return (
@@ -24,56 +21,23 @@ export function Hero() {
           <br />
           <span className="hero-private">Keep payroll private.</span>
         </h1>
-        <p>
-          Salaries are paid through NEAR Confidential Intents, so they aren&apos;t publicly linked
-          to your company. One treasury pays your global team in USDC on NEAR, gasless for everyone.
+        <p className="hero-lede">
+          Companies pay global teams privately in USDC on NEAR. <br className="hero-br" />
+          Gasless for your team.
         </p>
         <div className="cta">
-          <ButtonLink href="#start" variant="light">
+          <ButtonLink href="/app/sign-up" variant="light">
             Open a treasury
           </ButtonLink>
-          <ButtonLink href="#how" variant="ghost-dark">
-            How it works
-          </ButtonLink>
+          <a className="hero-link" href="#how">
+            See how it works
+            <Icon name="arrowDown" size={16} />
+          </a>
         </div>
-        <ul className="chips" aria-label="Payout routes">
-          <li className="chip chip-private">NEAR · PRIVATE</li>
-          <li className="chip">NEAR · DIRECT</li>
-        </ul>
-        <p className="hero-cond">{PRIVACY_CONDITION}</p>
+        <Preview />
+        <TrustLine />
       </div>
     </section>
-  );
-}
-
-const WORDS = [
-  { t: "Confidential payouts", p: true },
-  { t: "Gasless for everyone", p: false },
-  { t: "Owner-signed payee list", p: false },
-  { t: "Quotes checked in your browser", p: false },
-  { t: "Fund with USDC on NEAR", p: false },
-  { t: "Payslips and CSV", p: false },
-  { t: "Private receipts", p: true },
-  { t: "Borderless payroll on NEAR", p: false },
-] as const;
-
-export function Marquee() {
-  const set = (copy: number) => (
-    <div className="mq-set" key={copy}>
-      {WORDS.map((w) => (
-        <span key={w.t} className={w.p ? "mq-private" : undefined}>
-          {w.t}
-        </span>
-      ))}
-    </div>
-  );
-  return (
-    <div className="mq" aria-hidden="true">
-      <div className="mq-track">
-        {set(1)}
-        {set(2)}
-      </div>
-    </div>
   );
 }
 
@@ -329,6 +293,29 @@ export function QuoteBand() {
   );
 }
 
+/** The four steps, in the founder's words. Numbers come from the list position. */
+export const HOW_STEPS = [
+  {
+    h: "Add your team",
+    p: "Names, salaries in USD and payout addresses.",
+  },
+  {
+    h: "Fund in USDC",
+    p: "Send USDC on NEAR to your treasury.",
+  },
+  {
+    h: "Review and approve",
+    p: "Your browser checks every address and amount; you approve in your wallet.",
+  },
+  {
+    h: "Paid, privately",
+    p: "USDC arrives gasless; private payouts aren't publicly linked to you.",
+  },
+] as const;
+
+const TRUST_DIAGRAM_LABEL =
+  "Diagram: a pay run is checked against the treasury's signed payee list and NEAR Intents' signed quotes in the browser, then settles privately or directly";
+
 export function How() {
   return (
     <section id="how" aria-labelledby="tr-h">
@@ -337,14 +324,23 @@ export function How() {
         <h2 id="tr-h" className="how-h">
           Every payout passes the same path
         </h2>
-        <Reveal
-          className="tree"
-          scrollLabel="How a payout is checked (scrolls sideways on a small screen)"
-        >
+        <ol className="how-steps">
+          {HOW_STEPS.map((s, i) => (
+            <Reveal as="li" key={s.h} className="how-step">
+              <span className="how-num" aria-hidden="true">
+                {i + 1}
+              </span>
+              <h3>{s.h}</h3>
+              <p>{s.p}</p>
+            </Reveal>
+          ))}
+        </ol>
+        <Reveal className="tree">
           <svg
+            className="tree-wide"
             viewBox="0 0 960 300"
             role="img"
-            aria-label="Diagram: a pay run is checked against the treasury's signed payee list and NEAR Intents' signed quotes in the browser, then settles privately or directly"
+            aria-label={TRUST_DIAGRAM_LABEL}
           >
             <g className="node n3">
               <path className="edge" d="M380 150 C430 150 430 80 480 80" strokeWidth="1.2" />
@@ -396,6 +392,73 @@ export function How() {
               </text>
               <rect className="node-card" x="870" y="194" width="80" height="32" rx="16" />
               <text x="910" y="215" textAnchor="middle">
+                Direct
+              </text>
+            </g>
+          </svg>
+          {/* Under 900px the same path is drawn top to bottom, so every node fits the screen. */}
+          <svg
+            className="tree-tall"
+            viewBox="0 0 240 360"
+            role="img"
+            aria-label={TRUST_DIAGRAM_LABEL}
+          >
+            <g className="node n2">
+              <path className="flow" d="M120 24 V84" strokeWidth="2" />
+            </g>
+            <g className="node n3">
+              <path className="edge" d="M120 120 C120 140 60 140 60 160" strokeWidth="1.2" />
+              <path className="edge" d="M120 120 C120 140 180 140 180 160" strokeWidth="1.2" />
+            </g>
+            <g className="node n4">
+              <path className="edge" d="M60 208 C60 228 120 228 120 248" strokeWidth="1.2" />
+              <path className="edge" d="M180 208 C180 228 120 228 120 248" strokeWidth="1.2" />
+            </g>
+            <g className="node n5">
+              <path className="flow-private" d="M120 284 C120 304 60 304 60 324" strokeWidth="2" />
+              <path className="flow" d="M120 284 C120 304 180 304 180 324" strokeWidth="2" />
+            </g>
+            <g className="node n1">
+              <circle className="node-ink" cx="120" cy="16" r="8" />
+              <text x="146" y="21" textAnchor="start">
+                Treasury
+              </text>
+            </g>
+            <g className="node n2">
+              <rect className="node-ink" x="70" y="84" width="100" height="36" rx="18" />
+              <text className="t-light" x="120" y="107" textAnchor="middle">
+                Pay run
+              </text>
+            </g>
+            <g className="node n3">
+              <rect className="node-card" x="4" y="160" width="112" height="48" rx="18" />
+              <text x="60" y="180" textAnchor="middle">
+                Signed
+              </text>
+              <text x="60" y="197" textAnchor="middle">
+                payee list
+              </text>
+              <rect className="node-card" x="124" y="160" width="112" height="48" rx="18" />
+              <text x="180" y="180" textAnchor="middle">
+                Signed
+              </text>
+              <text x="180" y="197" textAnchor="middle">
+                quotes
+              </text>
+            </g>
+            <g className="node n4">
+              <rect className="node-check" x="40" y="248" width="160" height="36" rx="18" />
+              <text x="120" y="271" textAnchor="middle">
+                Browser checks
+              </text>
+            </g>
+            <g className="node n5">
+              <rect className="node-private" x="10" y="324" width="100" height="32" rx="16" />
+              <text className="t-private" x="60" y="345" textAnchor="middle">
+                Private
+              </text>
+              <rect className="node-card" x="130" y="324" width="100" height="32" rx="16" />
+              <text x="180" y="345" textAnchor="middle">
                 Direct
               </text>
             </g>
@@ -475,9 +538,9 @@ const FOOTER_COLS = [
   {
     h: "Product",
     links: [
-      ["#story", "Tour"],
-      ["#product", "Features"],
       ["#how", "How it works"],
+      ["#product", "Features"],
+      ["#story", "Tour"],
       ["#faq", "FAQ"],
     ],
   },

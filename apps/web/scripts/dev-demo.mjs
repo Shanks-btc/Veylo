@@ -1,5 +1,5 @@
 // pnpm dev:web: the app on this computer with demo data: no API, no database, no wallet. The demo
-// world runs in the browser (src/demo), shows a "Demo data" banner on every page, and the browser
+// world runs in the browser (src/demo), runs on made-up data, and the browser
 // checks run for real on a recorded NEAR Intents quote.
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";

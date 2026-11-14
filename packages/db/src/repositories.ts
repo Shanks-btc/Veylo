@@ -993,8 +993,15 @@ export async function lastPaidForContractor(
 
 type AttemptStatus = (typeof schema.attemptStatusEnum.enumValues)[number];
 
-/** Live attempts in these statuses, across orgs, for the worker: each with its run and route mode. */
-export async function listAttemptsByStatus(db: Db, statuses: readonly AttemptStatus[]) {
+/**
+ * Live attempts in these statuses, across orgs, for the worker: each with its run and route mode.
+ * With `orgId` only that organisation's (the hosted status-page refresh, W7).
+ */
+export async function listAttemptsByStatus(
+  db: Db,
+  statuses: readonly AttemptStatus[],
+  orgId?: string,
+) {
   const rows = await db
     .select({
       attempt: payoutAttempts,
@@ -1005,7 +1012,11 @@ export async function listAttemptsByStatus(db: Db, statuses: readonly AttemptSta
     .from(payoutAttempts)
     .innerJoin(payRunItems, eq(payRunItems.id, payoutAttempts.lineItemId))
     .leftJoin(payoutDestinations, eq(payoutDestinations.id, payRunItems.destinationId))
-    .where(inArray(payoutAttempts.status, [...statuses]));
+    .where(
+      orgId === undefined
+        ? inArray(payoutAttempts.status, [...statuses])
+        : and(inArray(payoutAttempts.status, [...statuses]), eq(payoutAttempts.orgId, orgId)),
+    );
   return rows.map((r) => ({
     ...r.attempt,
     payRunId: r.payRunId,
@@ -1112,7 +1123,7 @@ export async function activeEncumbranceTotal(db: Db, orgId: string): Promise<big
 }
 
 /** Active encumbrances past their deadline, or on a settled attempt, for the release job. */
-export async function listDueEncumbrances(db: Db, now: Date) {
+export async function listDueEncumbrances(db: Db, now: Date, orgId?: string) {
   return db
     .select({
       orgId: encumbrances.orgId,
@@ -1126,12 +1137,13 @@ export async function listDueEncumbrances(db: Db, now: Date) {
       and(
         isNull(encumbrances.releasedAt),
         or(lte(encumbrances.until, now), eq(payoutAttempts.status, "SUCCESS")),
+        ...(orgId === undefined ? [] : [eq(encumbrances.orgId, orgId)]),
       ),
     );
 }
 
 /** Stored signed payloads that can do nothing more: settled, or past their message deadline. */
-export async function listPayloadsToDelete(db: Db, now: Date) {
+export async function listPayloadsToDelete(db: Db, now: Date, orgId?: string) {
   return db
     .select({ id: payoutAttempts.id, orgId: payoutAttempts.orgId, status: payoutAttempts.status })
     .from(payoutAttempts)
@@ -1140,6 +1152,7 @@ export async function listPayloadsToDelete(db: Db, now: Date) {
         isNotNull(payoutAttempts.encryptedSignedPayload),
         inArray(payoutAttempts.status, ["SUCCESS", "REFUNDED", "FAILED", "EXPIRED"]),
         or(eq(payoutAttempts.status, "SUCCESS"), lte(payoutAttempts.signedMessageDeadline, now)),
+        ...(orgId === undefined ? [] : [eq(payoutAttempts.orgId, orgId)]),
       ),
     );
 }

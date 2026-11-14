@@ -7,6 +7,7 @@ import { verifyRegistry } from "../gates/registry";
 import { createProofRpc } from "../proof/rpc";
 import { privatePayoutFacts, verifyDirectPayout, type DirectVerification } from "../proof/verify";
 import { PRIVACY_CONDITION } from "../site";
+import { privatePayoutStatus } from "../app-ui/plain";
 import { SessionProvider, useApi, useQueryParam, useSession, webConfig } from "../app-ui/session";
 import { ErrorNote, PageHeader } from "../app-ui/shell";
 import { AmountText, Button, ButtonLink, Logo, Skeleton, Tag } from "../ui/basic";
@@ -174,7 +175,7 @@ function Verify() {
             return (
               <div className="stack">
                 <p>
-                  Status recorded by NEAR Intents: <strong>{f.status}</strong>
+                  Status recorded by NEAR Intents: <strong>{privatePayoutStatus(f.status)}</strong>
                 </p>
                 <p>
                   Intent hash: <span className="mono">{f.intentHash ?? "not recorded"}</span>

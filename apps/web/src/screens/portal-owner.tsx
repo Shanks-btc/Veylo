@@ -19,7 +19,7 @@ export function PortalCard({
   contractorId: string;
   isOwner: boolean;
 }) {
-  const { api } = useSession();
+  const { api, features } = useSession();
   const toast = useToast();
   const [link, setLink] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -99,6 +99,12 @@ export function PortalCard({
           {link ? (
             <div className="stack" role="status">
               <p className="small">Copy it now: it isn&apos;t shown again.</p>
+              {!features.emailDelivery ? (
+                <p className="small">
+                  Email delivery is not set up yet, so Veylo can&apos;t send this for you. Send the
+                  link to your contractor yourself.
+                </p>
+              ) : null}
               <AddressText value={link} label="invite link" />
             </div>
           ) : null}

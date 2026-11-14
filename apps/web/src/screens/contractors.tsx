@@ -13,6 +13,7 @@ import { LoadBlock } from "../app-ui/page-kit";
 import { ErrorNote, NeedsOrg, PageHeader } from "../app-ui/shell";
 import { useApi, useOrg, useSession } from "../app-ui/session";
 import { RouteTag } from "../app-ui/format";
+import { payableReason, recordStatus } from "../app-ui/plain";
 import { Button, ButtonLink, Field, fieldAria, Tag } from "../ui/basic";
 import { Table } from "../ui/data";
 import { Modal, useToast } from "../ui/interactive";
@@ -46,7 +47,7 @@ function Payable({ orgId, c }: { orgId: string; c: Contractor }) {
   return active.payable ? (
     <Tag tone="success">Payable</Tag>
   ) : (
-    <Tag tone="warning">{active.payableReason.replaceAll("_", " ")}</Tag>
+    <Tag tone="warning">{payableReason(active.payableReason)}</Tag>
   );
 }
 
@@ -301,7 +302,7 @@ function ContractorList({ orgId }: { orgId: string }) {
               {
                 key: "status",
                 label: "Status",
-                render: (c) => <Tag tone="neutral">{c.status}</Tag>,
+                render: (c) => <Tag tone="neutral">{recordStatus(c.status)}</Tag>,
               },
               { key: "payable", label: "Payable", render: (c) => <Payable orgId={orgId} c={c} /> },
             ]}

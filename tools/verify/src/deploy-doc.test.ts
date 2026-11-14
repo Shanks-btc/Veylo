@@ -85,15 +85,15 @@ describe("docs/DEPLOY.md, slice W5", () => {
   };
   const web = (file: string) => readFileSync(join(root, "apps", "web", file), "utf8");
 
-  it("keeps the hosted demo up until at least 2026-11-25 (Q-012)", () => {
-    const s = section("## 14. Hosted demo");
+  it("keeps the deployment up until at least 2026-11-25 (Q-012)", () => {
+    const s = section("## 14. Vercel");
     expect(s).toContain("2026-11-25");
     expect(s).toContain("Q-012");
     expect(s).toContain("2026-11-18");
   });
 
-  it("has the pre-deploy checklist, and says nothing deploys itself", () => {
-    const s = section("## 14. Hosted demo");
+  it("has the pre-deploy checklist, the exact deploy steps, and how to roll back and rotate", () => {
+    const s = section("## 14. Vercel");
     for (const needed of [
       "Before the first deploy",
       "pnpm verify",
@@ -102,7 +102,63 @@ describe("docs/DEPLOY.md, slice W5", () => {
       "LICENSES.md",
     ])
       expect(s, needed).toContain(needed);
-    expect(s).toContain("Nothing here deploys itself");
+    for (const needed of [
+      "vercel deploy --prebuilt --prod --cwd deploy/api",
+      "vercel deploy --prod --cwd deploy/web",
+      "vercel deploy --prod --cwd deploy/wallet",
+      "Redeploy, roll back, rotate",
+      "vercel rollback",
+      "Rotate `CRON_SECRET`",
+      "Rotate `ONECLICK_PARTNER_KEY`",
+      "Rotate `SESSION_ENCRYPTION_KEY`",
+    ])
+      expect(s, needed).toContain(needed);
+  });
+
+  it("names the three projects and their short URLs, and no team-scoped or hash-addressed one", () => {
+    const s = section("## 14. Vercel");
+    for (const url of [
+      "https://veylopay.vercel.app",
+      "https://veylo-wallet.vercel.app",
+      "https://veylo-srv.vercel.app",
+    ])
+      expect(s, url).toContain(url);
+    expect(doc).not.toMatch(/[a-z0-9-]+-[a-z0-9]{8,}-[a-z0-9-]+\.vercel\.app/);
+  });
+
+  it("explains the cron jobs, cites the plan limit, and says what the free plan does instead", () => {
+    const s = section("## 14. Vercel");
+    for (const needed of [
+      "/internal/cron/prepare-drafts",
+      "/internal/cron/settlement",
+      "CRON_SECRET",
+      "https://vercel.com/docs/cron-jobs/usage-and-pricing",
+      "once a day",
+      "refresh on demand",
+    ])
+      expect(s, needed).toContain(needed);
+  });
+
+  it("the database section names Neon, the terms step only the founder can do, and the migrations", () => {
+    const s = section("## 14. Vercel");
+    for (const needed of [
+      "Neon",
+      "accept the Marketplace and Neon terms",
+      "pnpm db:migrate",
+      "DATABASE_URL_UNPOOLED",
+    ])
+      expect(s, needed).toContain(needed);
+  });
+
+  it("lists every variable per project, and hands the founder the one secret command", () => {
+    const s = section("## 14. Vercel");
+    for (const needed of [
+      "CRON_SECRET",
+      "SESSION_ENCRYPTION_KEY",
+      "ONECLICK_PARTNER_KEY",
+      "vercel env add ONECLICK_PARTNER_KEY production --sensitive --cwd deploy/api",
+    ])
+      expect(s, needed).toContain(needed);
   });
 
   it("explains the local wallet test: Postgres, migrate, dev:wallet, localhost:3000, Meteor", () => {
@@ -135,13 +191,13 @@ describe("docs/DEPLOY.md, slice W5", () => {
     // BRIDGE_PROTOCOL is a protocol constant in the code, not a setting.
     names.delete("BRIDGE_PROTOCOL");
     expect(names.size).toBeGreaterThan(8);
-    const s = section("## 14. Hosted demo");
+    const s = section("## 14. Vercel");
     const missing = [...names].filter((n) => !s.includes(`\`${n}\``));
     expect(missing).toEqual([]);
   });
 
   it("never sets the demo flag on the real app", () => {
-    expect(section("## 14. Hosted demo")).toContain("Leave it unset on the real app");
+    expect(section("## 14. Vercel")).toContain("Leave it unset on the real app");
   });
 });
 

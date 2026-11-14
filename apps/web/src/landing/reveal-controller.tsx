@@ -37,9 +37,15 @@ export function RevealController() {
     const fallback = window.setTimeout(() => {
       for (const el of items) el.classList.remove("pre");
     }, 2500);
+    // The ambient loops (the chips drift and glow, the closing button's ring) start once the page has
+    // settled, so they never compete with loading. The stylesheet does the rest (landing.css).
+    const ambient = window.setTimeout(() => {
+      document.documentElement.dataset.ambient = "on";
+    }, 3500);
     return () => {
       io.disconnect();
       window.clearTimeout(fallback);
+      window.clearTimeout(ambient);
     };
   }, []);
   return null;

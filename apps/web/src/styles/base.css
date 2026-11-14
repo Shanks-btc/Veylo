@@ -121,27 +121,6 @@ p {
   transition: none !important;
 }
 
-/* Demo data banner (pnpm dev:web only) */
-.demo-banner {
-  position: sticky;
-  top: 0;
-  z-index: 90;
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  padding: 10px 16px;
-  background: var(--c-ink);
-  color: var(--c-dark-text);
-  font-size: 14px;
-  text-align: center;
-}
-.demo-banner strong {
-  font-family: var(--font-mono);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 /* The wallet bridge frame (L44): an overlay only while the wallet needs the person. */
 .wallet-bridge {
   position: fixed;

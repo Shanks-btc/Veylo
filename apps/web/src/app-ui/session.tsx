@@ -26,6 +26,7 @@ export type Theme = "light" | "dark";
 
 export const webConfig: WebConfig = loadWebConfig({
   NEXT_PUBLIC_API_ORIGIN: process.env.NEXT_PUBLIC_API_ORIGIN,
+  NEXT_PUBLIC_API_BASE_PATH: process.env.NEXT_PUBLIC_API_BASE_PATH,
   NEXT_PUBLIC_NEAR_RPC_URL: process.env.NEXT_PUBLIC_NEAR_RPC_URL,
   NEXT_PUBLIC_NEAR_ARCHIVAL_RPC_URL: process.env.NEXT_PUBLIC_NEAR_ARCHIVAL_RPC_URL,
   NEXT_PUBLIC_AUTH_RECIPIENT: process.env.NEXT_PUBLIC_AUTH_RECIPIENT,
@@ -53,9 +54,15 @@ const ORG_KEY = "veylo.org";
 
 export type ConnectedWallet = { signer: WalletSigner; accountId: string; publicKey?: string };
 
+/** What this deployment can do (GET /features). The screens say so rather than pretend. */
+export type Features = { emailDelivery: boolean; liveQuotes: boolean; fundingQuotes: boolean };
+/** Until the answer arrives: claim no email was sent, and don't block anything. */
+const DEFAULT_FEATURES: Features = { emailDelivery: false, liveQuotes: true, fundingQuotes: true };
+
 type Session = {
   api: ApiClient;
   config: WebConfig;
+  features: Features;
   /** undefined while loading; null when signed out. */
   me: Me | null | undefined;
   refreshMe: () => Promise<void>;
@@ -98,6 +105,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     () =>
       createApiClient({
         origin: webConfig.apiOrigin,
+        basePath: webConfig.apiBasePath,
         // The demo build answers from its in-browser world; everything else uses the real network.
         fetch: isDemo()
           ? (input, init) => loadDemoWorld().then((w) => w.fetch(input, init))
@@ -105,6 +113,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }),
     [],
   );
+  const [features, setFeatures] = useState<Features>(DEFAULT_FEATURES);
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [orgId, setOrg] = useState<string | undefined>(undefined);
   const [wallet, setWallet] = useState<ConnectedWallet | undefined>(undefined);
@@ -139,6 +148,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshMe();
   }, [refreshMe]);
+
+  useEffect(() => {
+    api.call("GET /features").then(setFeatures, () => {
+      // Unreachable or unexpected: keep the cautious defaults.
+    });
+  }, [api]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -239,6 +254,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     () => ({
       api,
       config: webConfig,
+      features,
       me,
       refreshMe,
       orgId,
@@ -255,6 +271,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }),
     [
       api,
+      features,
       me,
       refreshMe,
       orgId,

@@ -197,7 +197,7 @@ function Profile({ orgId, canEdit }: { orgId: string; canEdit: boolean }) {
 }
 
 function Security() {
-  const { api, me, wallet, connectWallet, refreshMe } = useSession();
+  const { api, me, features, wallet, connectWallet, refreshMe } = useSession();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [current, setCurrent] = useState("");
@@ -283,9 +283,16 @@ function Security() {
           ]}
         />
         {me.user.email && !me.user.emailVerified ? (
-          <Button variant="grey" small onClick={resend}>
-            Send me a new confirmation link
-          </Button>
+          features.emailDelivery ? (
+            <Button variant="grey" small onClick={resend}>
+              Send me a new confirmation link
+            </Button>
+          ) : (
+            <p className="small muted" role="status">
+              Email delivery is not set up yet, so no confirmation email can be sent. Your account
+              works without it.
+            </p>
+          )
         ) : null}
         <p className="small muted">
           Your email is for signing in and notices. It can&apos;t sign or approve payments. Your

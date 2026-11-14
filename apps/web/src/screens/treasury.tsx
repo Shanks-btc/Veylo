@@ -3,24 +3,11 @@
 // the next pay run, and what waits on the owner.
 import { ErrorNote, NeedsOrg, PageHeader } from "../app-ui/shell";
 import { useApi, useOrg, useSession } from "../app-ui/session";
+import { BalanceStatsView } from "../app-ui/balance-stats";
 import { PrivateSessionButton } from "../app-ui/private-session";
-import {
-  OWNER_RUN_STATUSES,
-  RunTag,
-  sumDecimals,
-  UNSIGNED_RUN_STATUSES,
-  unitsToDecimal,
-} from "../app-ui/format";
-import { AmountText, ButtonLink, Skeleton, Stat, Tag } from "../ui/basic";
+import { OWNER_RUN_STATUSES, RunTag, sumDecimals, UNSIGNED_RUN_STATUSES } from "../app-ui/format";
+import { AmountText, ButtonLink, Skeleton, Stat } from "../ui/basic";
 import { Card } from "../ui/interactive";
-
-/** Plain words for why a balance can't be shown. */
-export function whyUnavailable(reason: string): string {
-  if (reason === "needs_session") return "Needs a one-time read-only connection from your wallet";
-  if (reason === "oneclick_error") return "NEAR Intents didn't answer. Try again in a moment";
-  if (reason === "rpc_error") return "NEAR didn't answer. Try again in a moment";
-  return "Not available right now";
-}
 
 function Balance({ orgId }: { orgId: string }) {
   const { api } = useSession();
@@ -31,42 +18,19 @@ function Balance({ orgId }: { orgId: string }) {
   );
   if (b.loading) return <Skeleton lines={2} label="Loading balances" />;
   if (b.error || !b.data) return <ErrorNote error={b.error ?? "No balance"} onRetry={b.reload} />;
-  const { confidential, public: pub } = b.data;
   return (
-    <div className="stack">
-      {!confidential.available && confidential.unavailable === "needs_session" && isOwner ? (
-        <Card className="stack">
-          <h2 className="section-title">See your private balance</h2>
-          <PrivateSessionButton kind={{ type: "treasury", orgId }} onOpened={b.reload} />
-        </Card>
-      ) : null}
-      <div className="grid-2">
-        <Stat
-          label="Private balance"
-          value={
-            confidential.available ? (
-              <AmountText value={unitsToDecimal(confidential.amount)} />
-            ) : (
-              "Unavailable"
-            )
-          }
-          note={
-            confidential.available ? (
-              <>
-                <Tag tone="private">Private</Tag> confidential on NEAR Intents
-              </>
-            ) : (
-              whyUnavailable(confidential.unavailable)
-            )
-          }
+    <BalanceStatsView
+      confidential={b.data.confidential}
+      pub={b.data.public}
+      isOwner={isOwner}
+      connect={
+        <PrivateSessionButton
+          kind={{ type: "treasury", orgId }}
+          onOpened={b.reload}
+          label="Connect your wallet"
         />
-        <Stat
-          label="Public balance"
-          value={pub.available ? <AmountText value={unitsToDecimal(pub.amount)} /> : "Unavailable"}
-          note={pub.available ? "Visible on NEAR Intents" : whyUnavailable(pub.unavailable)}
-        />
-      </div>
-    </div>
+      }
+    />
   );
 }
 

@@ -203,6 +203,7 @@ export async function portalRoutes(
   app.get("/portal/contractors/:contractorId/payslips", async (request) => {
     const { contractorId } = parse(portalContractor, request.params);
     const { contractor } = await own(request, contractorId);
+    await deps.refresh?.(contractor.orgId);
     const rows = (await ledgerAttempts(deps.db, contractor.orgId)).filter(
       (r) => r.contractorId === contractor.id,
     ) as AttemptRow[];

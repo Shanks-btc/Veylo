@@ -647,3 +647,12 @@
 .logo-veil {
   stroke: var(--c-private);
 }
+
+/* The thin success tick (ui/icon.tsx CheckMark): sized to the text, the colour of the text, on its
+   middle line. */
+.tick {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.18em;
+}

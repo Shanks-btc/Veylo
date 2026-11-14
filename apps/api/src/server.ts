@@ -2,33 +2,33 @@ import { randomBytes } from "node:crypto";
 import { createIntentsReader, createNearRpc } from "@veylo/chains";
 import { loadApiConfig } from "@veylo/config";
 import { schema } from "@veylo/db";
-import { createOneClickDryClient, createOneClickTreasuryClient } from "@veylo/intents";
 import { createSecretBox } from "@veylo/secrets";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { buildServer } from "./app.js";
 import { createFxClient } from "./fx.js";
 import { installShutdown } from "./lifecycle.js";
+import { createOneClickClients } from "./oneclick-clients.js";
 
 const config = loadApiConfig();
 const pool = new pg.Pool({ connectionString: config.DATABASE_URL });
 // An idle client losing its connection must not crash the process; /ready reports it instead.
 pool.on("error", () => {});
 
+// Without the partner key the API still runs; live quotes say so and fail closed (W7).
+const oneclick = createOneClickClients({
+  partnerKey: config.ONECLICK_PARTNER_KEY,
+  quotePublicKey: config.ONECLICK_QUOTE_PUBLIC_KEY,
+  fetch: globalThis.fetch,
+});
+
 const app = await buildServer({
   db: drizzle(pool, { schema }),
   clock: () => new Date(),
   random: (bytes) => randomBytes(bytes),
   rpc: createNearRpc({ url: config.NEAR_RPC_URL, fetch: globalThis.fetch }),
-  oneclick: createOneClickDryClient({
-    apiKey: config.ONECLICK_PARTNER_KEY,
-    fetch: globalThis.fetch,
-  }),
-  oneclickTreasury: createOneClickTreasuryClient({
-    apiKey: config.ONECLICK_PARTNER_KEY,
-    fetch: globalThis.fetch,
-    quotePublicKey: config.ONECLICK_QUOTE_PUBLIC_KEY,
-  }),
+  oneclick: oneclick.oneclick,
+  oneclickTreasury: oneclick.oneclickTreasury,
   intents: createIntentsReader({ url: config.NEAR_RPC_URL, fetch: globalThis.fetch }),
   fx: createFxClient({ fetch: globalThis.fetch, clock: () => new Date() }),
   secrets: createSecretBox({
@@ -46,6 +46,8 @@ const app = await buildServer({
     treasuryLimitPerUserPerHour: config.TREASURY_LIMIT_USER_PER_HOUR,
     payoutQuoteDeadlineMinutes: config.PAYOUT_QUOTE_DEADLINE_MINUTES,
     reviewDeviationPercent: config.REVIEW_AMOUNT_DEVIATION_PERCENT,
+    liveQuotes: oneclick.connected,
+    fundingQuotes: oneclick.fundingQuotes,
   },
 });
 

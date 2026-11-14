@@ -50,6 +50,15 @@ export type SettlementDeps = Pick<
   "db" | "clock" | "oneclickTreasury" | "secrets" | "intents" | "rpc" | "config"
 >;
 type AttemptRow = Awaited<ReturnType<typeof listAttemptsByStatus>>[number];
+/** A sweep may be limited to one organisation (the hosted status-page refresh, W7). */
+export type Scope = {
+  orgId?: string;
+  /**
+   * Asked before each row, never inside one: true means start no more work (the hosted jobs'
+   * time limit, W7). A row already begun finishes.
+   */
+  shouldStop?: () => boolean;
+};
 
 const binding = (row: { orgId: string; id: string }) => ({
   orgId: row.orgId,
@@ -240,17 +249,23 @@ export function createSettlement(deps: SettlementDeps) {
     syncRun,
 
     /** SUBMITTED and PROCESSING attempts. */
-    async pollPayoutStatus(log: Log) {
-      for (const row of await listAttemptsByStatus(deps.db, ["SUBMITTED", "PROCESSING"])) {
+    async pollPayoutStatus(log: Log, scope: Scope = {}) {
+      for (const row of await listAttemptsByStatus(
+        deps.db,
+        ["SUBMITTED", "PROCESSING"],
+        scope.orgId,
+      )) {
+        if (scope.shouldStop?.()) return;
         const body = await readStatus(row, log);
         if (body) await applyStatus(row, body, log);
       }
     },
 
     /** SIGNED attempts whose submit outcome is unknown. */
-    async resolveUncertainSubmits(log: Log) {
+    async resolveUncertainSubmits(log: Log, scope: Scope = {}) {
       const now = deps.clock();
-      for (const row of await listAttemptsByStatus(deps.db, ["SIGNED"])) {
+      for (const row of await listAttemptsByStatus(deps.db, ["SIGNED"], scope.orgId)) {
+        if (scope.shouldStop?.()) return;
         if (row.submitOutcome !== "uncertain") continue;
         const body = await readStatus(row, log);
         if (body === null) continue; // Couldn't ask. Try again next time.
@@ -284,9 +299,10 @@ export function createSettlement(deps: SettlementDeps) {
     },
 
     /** QUOTED attempts past their requested deadline: 1Click will refuse them now. */
-    async expireQuotes(_log: Log) {
+    async expireQuotes(_log: Log, scope: Scope = {}) {
       const now = deps.clock();
-      for (const row of await listAttemptsByStatus(deps.db, ["QUOTED"])) {
+      for (const row of await listAttemptsByStatus(deps.db, ["QUOTED"], scope.orgId)) {
+        if (scope.shouldStop?.()) return;
         if (row.mode !== "live" || !row.requestedDeadline) continue;
         if (row.requestedDeadline.getTime() <= now.getTime()) {
           if (await move(row, "EXPIRED")) await runOf(row);
@@ -295,9 +311,14 @@ export function createSettlement(deps: SettlementDeps) {
     },
 
     /** At least 30 s after terminal: refunds lag (rule 5). */
-    async reconcilePayouts(log: Log) {
+    async reconcilePayouts(log: Log, scope: Scope = {}) {
       const now = deps.clock();
-      for (const row of await listAttemptsByStatus(deps.db, ["SUCCESS", "REFUNDED", "FAILED"])) {
+      for (const row of await listAttemptsByStatus(
+        deps.db,
+        ["SUCCESS", "REFUNDED", "FAILED"],
+        scope.orgId,
+      )) {
+        if (scope.shouldStop?.()) return;
         if (row.mode !== "live" || row.reconciledAt || !row.terminalAt) continue;
         if (!isReconcilable({ status: row.status, failureReason: row.failureReason ?? undefined }))
           continue;
@@ -320,9 +341,10 @@ export function createSettlement(deps: SettlementDeps) {
     },
 
     /** EXPIRED and submit_rejected: released only once the signed message's own deadline passes. */
-    async releaseEncumbrances(_log: Log) {
+    async releaseEncumbrances(_log: Log, scope: Scope = {}) {
       const now = deps.clock();
-      for (const e of await listDueEncumbrances(deps.db, now)) {
+      for (const e of await listDueEncumbrances(deps.db, now, scope.orgId)) {
+        if (scope.shouldStop?.()) return;
         const deadlineRelease =
           e.attemptStatus === "EXPIRED" ||
           (e.attemptStatus === "FAILED" && e.failureReason === "submit_rejected");
@@ -338,7 +360,8 @@ export function createSettlement(deps: SettlementDeps) {
         }
       }
       // The bearer copy goes once it can't do anything: settled, or past its message deadline.
-      for (const row of await listPayloadsToDelete(deps.db, now)) {
+      for (const row of await listPayloadsToDelete(deps.db, now, scope.orgId)) {
+        if (scope.shouldStop?.()) return;
         await moveAttempt(deps.db, row.orgId, row.id, row.status, {
           encryptedSignedPayload: null,
           payloadDeletedAt: now,

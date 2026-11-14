@@ -1,107 +1,154 @@
 # Veylo
 
-**Private payroll on NEAR: salaries are paid through NEAR Confidential Intents, so they aren't publicly linked to your company. Gasless for everyone.**
+<p align="center"><img src="design/images/veylo-landing%20.png" alt="Veylo landing page" width="100%"></p>
+
+**Veylo is private, borderless payroll on NEAR.** One treasury pays a global team in USDC, gasless for everyone, and payroll isn't publicly linked to the company.
 
 Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it.
 
-This README is written for a bookkeeper or finance lead, and for anyone reading it quickly (a judge, a screener, a script). It says what Veylo does, how to try it in two minutes, and what has been proven on NEAR mainnet. A short developer section is at the end.
+**Live app:** [veylopay.vercel.app](https://veylopay.vercel.app) · **Repository:** [github.com/Shanks-btc/Veylo](https://github.com/Shanks-btc/Veylo) · **Demo video:** coming soon
 
-## Judge quickstart
+## Try it in 2 minutes
 
-**Hosted demo:** `<hosted-demo-url>` (placeholder: set when deployed, see [docs/DEPLOY.md](docs/DEPLOY.md) section 14). It runs on made-up people and amounts, with a real recorded NEAR Intents quote.
+**Live app:** https://veylopay.vercel.app is the real app: your own account, your own wallet, a real database ([docs/DEPLOY.md](docs/DEPLOY.md) section 14). To see the whole story with no wallet and no money, run the demo on your own computer: the six rows below, then the one-liner after them. They use made-up people and amounts, with a real recorded NEAR Intents quote.
 
 | #   | Do                                                                                     | See                                                                                                                                                                                                                                        |
 | --- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Open the demo link.                                                                    | The landing page: "Pay your team anywhere. Keep payroll private."                                                                                                                                                                          |
-| 2   | Click **Open app**, then **Use a wallet instead**, then **Use the demo wallet**.       | A real sign-in message is checked and signed by the demo wallet. You land on the treasury home with a "Demo data" banner.                                                                                                                  |
+| 1   | Run `pnpm i && pnpm dev:web`, then open http://localhost:3000.                         | The landing page: "Pay your team anywhere. Keep payroll private."                                                                                                                                                                          |
+| 2   | Click **Open app**, then **Use a wallet instead**, then **Use the demo wallet**.       | A real sign-in message is checked and signed by the demo wallet. You land on the treasury home.                                                                                                                                            |
 | 3   | Open **Pay runs**, then the 2026-11 run, then **Check before signing**.                | Five checks turn to PASS (quote signature, payee list, key, amount, time left). **Approve payouts in wallet** unlocks.                                                                                                                     |
 | 4   | Click **Redirect Kwame's payout to an attacker**.                                      | Four checks turn to FAIL (quote signature, payee list, amount, time left), in plain words ("The payee list your server sent isn't the one your treasury wallet signed"). Approve stays locked. **Undo the attack** brings the passes back. |
 | 5   | Open **Privacy**.                                                                      | The same kind of payout seen two ways, read live from NEAR mainnet: the direct one can be followed from treasury to recipient; for the private one, no public transaction names the treasury.                                              |
 | 6   | Open **Ledger**, then **Verify** on a payout, and download a payslip or statement PDF. | The verify page re-reads the payout's NEAR transactions and checks the amount and recipient. The PDF carries the same verify link.                                                                                                         |
 
-Locally, with no keys and no money:
+With no keys and no money, in one line:
 
 ```
 pnpm i && pnpm demo
 ```
 
-It runs the whole story and prints 19 numbered checks in under a minute: fund the treasury, add a contractor, approve their address, review the pay run, browser checks pass, a redirected payout is refused, approve and settle, payslip and CSV, privacy proof, recurring payroll, roles, CSV import, the contractor portal, an email account, funding (USDC on NEAR first, and the quote's signature checked), local-currency estimates, the contractor's private balance, a payout in NEAR, and the Veylo wallet. It exits non-zero if any check fails.
+It runs the whole story and prints 19 numbered checks in under a minute, from funding the treasury to a refused redirected payout, a payslip and CSV, the privacy proof, roles, CSV import, the contractor portal and the Veylo wallet. It exits non-zero if any check fails.
+
+On the live app, funding works, but paying people needs the 1Click partner key, which isn't set yet: live payout quotes say "Live quotes are not connected yet" and nothing is sent. No email is sent yet either, and the screens say so.
+
+## Contents
+
+- [Try it in 2 minutes](#try-it-in-2-minutes)
+- [The problem](#the-problem)
+- [What Veylo does](#what-veylo-does)
+- [How it works](#how-it-works)
+- [Architecture](#architecture)
+- [Core components](#core-components)
+- [The pay run, step by step](#the-pay-run-step-by-step)
+- [What Veylo's server does, and what it never does](#what-veylos-server-does-and-what-it-never-does)
+- [What NEAR provides](#what-near-provides)
+- [Wallets](#wallets)
+- [Current status](#current-status)
+- [Safety and tests](#safety-and-tests)
+- [Quick start](#quick-start)
+- [Environment variables](#environment-variables)
+- [Repository layout](#repository-layout)
+- [Roadmap](#roadmap)
+- [Built at NEAR HACKATHON](#built-at-near-hackathon)
+- [License](#license)
+
+## The problem
+
+Paying people in other countries is slow, expensive and exposed.
+
+- **It is slow.** An international wire can take days to settle.
+- **It is expensive.** Wires carry fees, and the exchange rate can hide a spread that isn't shown as a fee.
+- **It is exposed.** Paying onchain fixes speed and cost, but a company wallet on a block explorer shows every salary: who is paid, how much, and when. Anyone can read it and follow it.
+
+Veylo is built to keep the speed of paying onchain and remove the exposure. What that means exactly, and what has been checked, is under [What Veylo does](#what-veylo-does).
 
 ## What Veylo does
 
-Veylo pays your contractors in USDC from one confidential treasury on NEAR, and each person chooses to be paid privately or directly. Nobody, including you, needs a gas token. Every payout is checked in your browser before you approve it, and every payout gets a payslip and a line in your CSV export.
+Veylo pays your contractors in USDC from one treasury on NEAR. Each person is paid privately or directly. Nobody, including you, needs a gas token to be paid. Every payout is checked in your browser before you approve it, and every payout gets a payslip and a line in your CSV export. Your treasury is held in USDC, so payroll doesn't change with crypto prices.
 
-Sign up and get a wallet in seconds; no app to install. Only you hold the key.
+| Principle                                 | What it means                                                                                                                                                                                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Private by default**                    | Payouts are paid privately, from a confidential balance through NEAR Confidential Intents. A direct (public) payout is a separate, labelled choice for each contractor.                                                                     |
+| **Only you can move money**               | Your treasury is your own wallet account. Veylo is non-custodial: its server never holds a key, can't sign for you, and can't change who gets paid. You approve each payout in your wallet.                                                 |
+| **Your browser checks every payout**      | Before Approve unlocks, your browser checks that the quote is signed by NEAR Intents, that it pays someone on your signed payee list, that the signing key is yours, and that the amount is right. A payee's address change waits 24 hours. |
+| **Gasless for everyone**                  | A payout is a message your wallet signs, and NEAR Intents settles it. No gas token for you, and none for the person you pay.                                                                                                                |
+| **Any NEAR wallet or an embedded wallet** | Connect one of 7 NEAR wallets, or create a Veylo wallet at sign-up with a passkey or a password. No app to install.                                                                                                                         |
+| **Nothing hidden**                        | If a check fails, approval is locked and the screen says which check and why. If data can't be loaded (a NEAR read, a currency rate), the screen says so, in words, and never shows a cached or invented answer.                            |
 
-The shortest path to a first payment: sign up with your email, create your wallet with a passkey, confirm your recovery phrase, fund the treasury with USDC on NEAR, add a contractor, and pay them. Your treasury is held in USDC so payroll doesn't change with crypto prices.
+**What "private" means.** Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it. Private isn't anonymous: the contractor, Veylo and the settlement service can still see the details. The **Privacy** screen shows the difference live from NEAR mainnet, and the **Verify** page re-checks a direct payout from NEAR on every load.
 
-## Try it
+**Money and currencies.**
 
-**(a) The hosted demo** (no install): follow the six rows in the table above.
+- Salaries are set in US dollars, and the treasury is held in USDC.
+- Funding is in USDC on NEAR, or converted from USDC or USDT on another network. A payout in NEAR is quoted at the time of payout and waits for its live test.
+- Local currencies (NGN, EUR, GBP, KES, INR and others) are display-only estimates. The rates come from one public source (open.er-api.com), fetched by Veylo's server and cached for at most an hour. When it can't be reached the screen says "rate unavailable". An estimate is never used to work out, sign or send a payment.
 
-**(b) On your computer, with demo data:**
+**Compared with NEAR Business.** NEAR Business describes itself as a cross-chain multisig solution for managing confidential digital assets, with member roles and payment requests that members propose and approve ([docs](https://docs.business.near.com/), read 2026-11-12). The pages we read do not mention payroll, pay runs or payslips. Veylo is a payroll layer for a confidential treasury: contractors and pay runs, payslips and statements, a CSV for the accountant, and an owner-signed payee list. NEAR Business is a multisig where several members approve; Veylo has one owner wallet that signs. Several approvers are on the roadmap.
 
-1. `pnpm install`
-2. `pnpm dev:web`. Open http://localhost:3000 for the landing page and http://localhost:3000/app for the app. Every page shows a "Demo data" banner, and nothing is saved, signed or sent.
-3. Click **Use a wallet instead**, then **Use the demo wallet**. Expect to land on the treasury home. The demo wallet signs a real sign-in message.
-4. **Contractors**: expect Kwame (payable) and Ada (waiting for the treasury wallet's approval).
-5. **Pay runs** then **2026-11**: expect one payout ready and one held back, with its reason.
-6. Click **Check before signing**. Expect five PASS rows and **Approve payouts in wallet** enabled.
-7. **The tamper test:** click **Redirect Kwame's payout to an attacker**. Expect four FAIL rows (the account-key row still passes) and Approve disabled. Click **Undo the attack** and expect five PASS rows again.
-8. Click **Approve payouts in wallet**. Expect the pay run status screen.
-9. **The privacy proof:** open **Privacy**. Expect two columns, each read from NEAR mainnet when the page loads, with a "checked at" time. If NEAR can't be reached, expect "Couldn't check right now", never a cached answer.
-10. **Ledger**, then **Verify** next to a payout. Expect a list of checks for a direct payout, or the recorded status for a private one.
+## How it works
 
-**(c) With a real wallet, still on your computer:** start Postgres and migrate it, then run `pnpm dev:wallet` and open http://localhost:3000. The steps are in [docs/DEPLOY.md](docs/DEPLOY.md) section 13.
+A month in Veylo, from sign-up to payslips:
 
-## Built on NEAR
+1. **Sign up.** Use an email and a password, or connect a NEAR wallet. The email account is for signing in, invitations and notices. It has no signing power.
+2. **Get a wallet.** Create a Veylo wallet in seconds, or connect one you already have.
+3. **Fund the treasury in USDC on NEAR.** The Fund screen shows an address and a QR code. USDC from Base, Arbitrum or Solana, and USDT from BNB Smart Chain, are converted by NEAR Intents: you see the rate, the fee and the USDC you receive first. USDT on NEAR and NEAR are marked "coming soon". [docs/FUNDING.md](docs/FUNDING.md) has the exact steps.
+4. **Add your team.** One by one, or from a CSV ([docs/contractors-sample.csv](docs/contractors-sample.csv) shows the format). Enter a name and a NEAR account.
+5. **Sign the payee list.** Your treasury wallet signs each approved address onto your payee list.
+6. **Review the pay run.** A recurring schedule can prepare the draft three days before payday. Nothing is quoted or signed until you open it. You see each amount, route and fee.
+7. **Approve in your wallet.** Your browser runs its checks on every payout. A new payee, a new address or an unusual amount needs you to tick "I've checked this". If every check passes, you approve each payout in your wallet, one approval per payout.
+8. **Payouts settle,** usually within a minute or two.
+9. **Payslips and verification.** Every settled payout has a payslip (PDF), appears in the ledger and the CSV, and has a verify page.
 
-- **NEAR Intents is the treasury.** The treasury holds its USDC in its NEAR Intents balance and pays from it.
-- **1Click** is NEAR Intents' swap and deposit API. Veylo uses it for quotes, deposit addresses and funding, and every quote's signature is checked in the browser against the pinned key ([signed intent execution](https://docs.near-intents.org/integration/distribution-channels/1click-api/quickstart/signed-intent-execution)).
-- **Confidential Intents** hold the confidential balance (the `intents.far` verifier) that private payouts are paid from.
-- **Signed-intent execution:** each payout is authorised by an off-chain signed intent, so there is no gas and no relayer.
-- **NEP-413** is how a wallet signs the sign-in message, the payee list and each payout.
-- **NEP-141 USDC** is the money. NEAR RPC is read directly from the browser to check keys and balances.
-- **HOT and near-connect:** wallets connect through `@hot-labs/near-connect`, HOT's open wallet connector. HOT Wallet and Meteor are listed first in the picker. The list of wallets comes from near-connect's manifest (<https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json>, version 1.1.0, read 2026-11-12); the wallets Veylo enables, and why the others are left out, are in [docs/WALLETS.md](docs/WALLETS.md).
-- **No integration is mandatory** for this hackathon (Q-011): Veylo uses these because they are what it is built on.
-- **NEAR-only payouts** for this hackathon: private (confidential USDC on NEAR), and direct (public USDC to a NEAR account, or NEAR), both waiting for their mainnet tests.
+**Roles.** The owner does everything and signs with the treasury wallet. A preparer creates and edits drafts and contractors, and can't approve addresses or sign. An accountant reads the ledger, payslips, statements, CSV and audit log, and sees a contractor's name and route, nothing else personal.
 
-## Why there's no relayer
+## Architecture
 
-A relayer pays the gas for a transaction a user signed. NEAR's meta-transactions tutorial describes a relayer that pays gas from its own funded account for a signed delegate action, and that can choose which calls it sponsors; its example sponsors one call to one contract ([meta transactions](https://docs.near.org/web3-apps/tutorials/meta-transactions)).
+| Layer                        | Responsibility                                                                                                                                                                                          | Location                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Web app                      | A static Next.js site with a strict content-security policy: the landing page, the owner app, the contractor portal, and the public verify and privacy pages. It runs every browser check.              | `apps/web/src`                                                                                    |
+| Wallet bridge origin         | A separate web address that loads wallet code pinned by SHA-256 and holds the embedded wallet's key. The app and the bridge talk by messages, and never share storage.                                  | `apps/web/bridge`, `apps/web/src/wallet`                                                          |
+| Embedded wallet              | Key creation, the encrypted vault (passkey or password), the recovery phrase, and signing.                                                                                                              | `apps/web/bridge/embedded`                                                                        |
+| Browser gates                | The checks that run before you approve: A, B, B2, C for payouts and F for funding.                                                                                                                      | `apps/web/src/gates`                                                                              |
+| API                          | Fastify: accounts, organisations, roles, contractors, payee records, pay runs, quotes, ledger and reports.                                                                                              | `apps/api/src`                                                                                    |
+| Cron routes                  | On Vercel, two protected routes replace the long-running worker: `settlement` (poll status, reconcile) and `prepare-drafts` (scheduled drafts). A bearer secret guards them.                            | `apps/api/src/cron-routes.ts`, `hosted.ts`, `settlement.ts`, `scheduler.ts`                       |
+| Database                     | PostgreSQL (Neon on Vercel) with Drizzle migrations. Every query is scoped to one organisation.                                                                                                         | `packages/db`                                                                                     |
+| NEAR Intents / 1Click client | A thin in-house client for quotes, intent messages, submission and status, with the quote-signature check.                                                                                              | `packages/intents`                                                                                |
+| Domain rules                 | Pure money rules with no network or database: pay runs, fees, review flags, schedules, CSV.                                                                                                             | `packages/core`                                                                                   |
+| Chains and shared code       | Address validation, NEAR RPC reads and explorer links (`packages/chains`); request and response schemas (`packages/contract`); environment schema (`packages/config`); encryption (`packages/secrets`). | `packages/*`                                                                                      |
+| Verify and proof pages       | Re-read a payout's NEAR transactions in the browser, and show the privacy difference live.                                                                                                              | `apps/web/src/proof`, `apps/web/src/screens/verify.tsx`, `apps/web/src/screens/privacy-proof.tsx` |
 
-Veylo doesn't run a contract of its own, and its payouts aren't calls to one. A payout is an off-chain signed intent from the treasury's NEAR Intents balance: the wallet signs a message, and NEAR Intents settles it. Nobody pays gas, so there is nothing for a relayer to sponsor. The 1Click flow is documented here: [signed intent execution](https://docs.near-intents.org/integration/distribution-channels/1click-api/quickstart/signed-intent-execution).
+On Vercel the web app, the wallet bridge and the API are three projects: `veylopay`, `veylo-wallet` and `veylo-srv`. The web app forwards `/api/*` to the API. The deploy runbook is [docs/DEPLOY.md](docs/DEPLOY.md); the design is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Email accounts and wallets
+## Core components
 
-You can sign up with an email and a password, or connect an existing NEAR wallet. The email account is for signing in, invitations and notices. It has no signing power.
+| Component                  | What it does                                                                                                                                                                       | Where                                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Gate A, the quote verifier | Checks 1Click's ed25519 signature on the quote against the key pinned in the code.                                                                                                 | `apps/web/src/gates/signed-quote.ts`, `packages/intents/src/quote-signature.ts`                     |
+| Gate B, the payee list     | The quote's recipient, asset and type must match an unexpired payee on the list your treasury wallet signed. The wallet's public key is read from NEAR, never from Veylo's server. | `apps/web/src/gates/registry.ts`, `rpc.ts`                                                          |
+| Gate B2, the signing key   | Confirms through NEAR RPC that the wallet's signing key is registered for your treasury on the verifier the message names (`intents.near` or `intents.far`).                       | `apps/web/src/gates/index.ts`                                                                       |
+| Gate C, the amount         | The message must pay the quote's deposit address, and the signed amount may exceed the payout by at most the larger of 1 USDC and 1% of it.                                        | `apps/web/src/gates/index.ts`                                                                       |
+| Gate F, funding            | Before a deposit address is shown, checks 1Click's signature on the funding quote, that the funds go to your own treasury, that a refund returns to you, and the amount.           | `apps/web/src/gates/funding.ts`                                                                     |
+| Payee registry             | Your treasury wallet signs each payee and a versioned head of the whole list. The browser remembers the highest version it has seen and refuses a lower one. Approvals expire.     | `packages/intents/src/payee.ts`, `apps/web/src/gates/high-water.ts`, `apps/api/src/payee-routes.ts` |
+| Embedded wallet            | A wallet created in the browser. Its key is kept on the bridge origin, protected by a passkey or a password, and a recovery phrase must be confirmed before use.                   | `apps/web/bridge/embedded`                                                                          |
+| Scheduler                  | Prepares a draft pay run before payday from a recurring schedule. It has a database and a clock and nothing else: it can't quote, sign or send.                                    | `apps/api/src/scheduler.ts`, `packages/core/src/schedule.ts`                                        |
+| CSV importer               | Adds many contractors from one file, and shows each row's problem before anything is saved.                                                                                        | `apps/api/src/contractor-import.ts`, `packages/core/src/csv.ts`                                     |
+| Contractor portal          | A contractor sees their own payslips and private balance and sets their payout address. Cash-out from the portal waits for its live test.                                          | `apps/web/src/screens/portal.tsx`, `apps/api/src/portal-routes.ts`                                  |
+| Verify page                | Re-reads a direct payout's NEAR transactions and checks the amount and the recipient. For a private payout it shows the recorded status.                                           | `apps/web/src/screens/verify.tsx`, `apps/web/src/proof/verify.ts`                                   |
 
-The owner's wallet signs the payee list and every payout, so Veylo's server can't move money or change who gets paid. Whoever controls an inbox doesn't control the treasury, because the email never touches the wallet's key.
+## The pay run, step by step
 
-**The Veylo wallet:** at sign-up you can create a wallet in seconds, with no app to install. Its key is generated in your browser, on a separate wallet web address, and kept encrypted there, protected by a passkey (WebAuthn) or a separate wallet password (Argon2id). A recovery phrase is shown once and must be confirmed before the wallet can be used. Veylo's server never sees the key. Only you hold it: if you lose this device and your recovery phrase, Veylo can't recover it. A password reset never restores a wallet, and the email password never unlocks one.
+| Step | Name    | What happens                                                                                                                                                                           | Who signs / which NEAR call                                                                                             |
+| ---- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1    | Draft   | You create the pay run, or the scheduler prepares it before payday. Amounts come from each contractor's terms.                                                                         | Nobody. Nothing is quoted.                                                                                              |
+| 2    | Review  | You see each amount, route and fee, and flags for a new payee, a new address or an unusual amount.                                                                                     | Nobody. Fee previews come from dry quotes that cannot be paid.                                                          |
+| 3    | Quote   | Veylo's server asks 1Click for a live quote for each payout (`/v0/quote`). Each quote has a deadline, 15 minutes by default.                                                           | The server calls 1Click. No signature.                                                                                  |
+| 4    | Check   | The server asks 1Click for the intent message for each quote (`/v0/generate-intent`). Your browser runs gates A, B, B2 and C on the quote and the message. Any failure locks approval. | Nobody signs. The browser reads NEAR RPC (`view_access_key_list`, `has_public_key`).                                    |
+| 5    | Approve | You approve in your wallet, one prompt per payout. The wallet signs the message unchanged.                                                                                             | Your treasury wallet, with NEP-413 `signMessage`. It signs a message, not a transaction.                                |
+| 6    | Submit  | Your browser returns the signatures and the server submits each signed intent to 1Click (`/v0/submit-intent`).                                                                         | No new signature. The server holds a signed message it cannot change.                                                   |
+| 7    | Settle  | NEAR Intents settles each payout, in parallel. Veylo polls `/v0/status` until each one is final.                                                                                       | Nobody. NEAR Intents' verifier (`intents.near`, or `intents.far` for a confidential payout) executes the signed intent. |
+| 8    | Record  | After a short delay the payout is reconciled. It gets a ledger line, a CSV row, a payslip and a verify page.                                                                           | Nobody.                                                                                                                 |
 
-Existing wallets work the same way: whichever wallet signs, the app verifies the signature, the key and the account itself every time.
-
-## How Veylo compares
-
-- **NEAR Business** describes itself as a cross-chain multisig solution for managing confidential digital assets. Its docs describe a multisig smart contract on NEAR, treasuries that are confidential, member roles (Governance, Requestor, Finance) and payment requests that members propose and approve ([docs](https://docs.business.near.com/), read 2026-11-12). The pages we read do not mention payroll, pay runs or payslips.
-- **Veylo is a payroll layer** for a confidential treasury: contractors and pay runs, payslips and statements, a CSV for the accountant, and an owner-signed payee list.
-- **Where they differ:** NEAR Business is a multisig where several members approve. Veylo has one owner wallet that signs, pays each person privately or directly, and checks every payout in the browser before the owner approves it. Several approvers for a pay run are on the roadmap.
-- **What you can check yourself:** the browser checks that refuse a redirected payout can be watched failing on purpose in the demo (row 4 above), and the Privacy screen reads NEAR live.
-
-## How a month works
-
-1. **Fund the treasury.** The Fund screen offers, in this order: USDC on NEAR (an address and a QR code), USDT on NEAR converted to USDC, USDC from another network converted by NEAR Intents, and NEAR converted to USDC. A conversion shows the rate, the fee and the USDC you receive first, and the browser checks the quote's signature before it shows a deposit address. Funding through 1Click was tested on mainnet with USDT from BNB Smart Chain ([docs/EVIDENCE.md](docs/EVIDENCE.md) rows 1 to 5). The NEAR and USDT-on-NEAR options are marked "coming soon" until their live tests pass (spikes S-F2 and S-FT in [VERIFICATION.md](VERIFICATION.md)).
-2. **Add a contractor,** one by one or from a CSV (`docs/contractors-sample.csv` shows the format). Enter their name and NEAR account.
-3. **Approve their address.** Your treasury wallet signs it onto your payee list.
-4. **Review the pay run.** A recurring schedule can prepare the draft three days before payday; nothing is quoted or signed until you open it. You see each amount, route and fee.
-5. **Approve payouts in your wallet.** Your browser runs its checks on every payout. A first payout, a new address or an unusual amount needs you to tick "I've checked this". If all checks pass, you approve each payout in your wallet, one approval per payout. There's no gas.
-6. **Payouts settle,** usually within a minute or two.
-7. **Payslips and statements.** Every settled payout has a payslip (PDF), appears in the ledger and the CSV, and has a verify page.
-
-**Roles:** the owner does everything and signs with the treasury wallet. A preparer creates and edits drafts and contractors, and can't approve addresses or sign. An accountant reads the ledger, payslips, statements, CSV and audit log, and sees a contractor's name and route, nothing else personal.
-
-## Payout statuses
+A payout moves through these statuses:
 
 | Status     | What it means                                                                      | What to do                                                                                                     |
 | ---------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -114,40 +161,20 @@ Existing wallets work the same way: whichever wallet signs, the app verifies the
 | FAILED     | It didn't go through. Anything not delivered returns to your treasury.             | Read the reason on the status screen, check the ledger's refunded amount, fix the cause, and retry the payout. |
 | EXPIRED    | The quote ran out before it was approved. No money moved.                          | Get a new quote and approve it in time.                                                                        |
 
-## Currencies
+<details>
+<summary>Reading the CSV export</summary>
 
-- **Salaries are set in US dollars.** The treasury is held in USDC.
-- **Funding** is in USDC on NEAR, or converted from USDT, NEAR or USDC on another network (the conversions wait for their live tests).
-- **Payouts** are in USDC (private or direct). A payout in NEAR is quoted at the time of payout, so the rate, the fee and the NEAR amount are shown before you approve; it waits for its live test (spike S-NR), and it is direct only, because confidential NEAR payouts are not documented as supported.
-- **Local currencies are display-only estimates.** A contractor or an organisation can see amounts beside NGN, EUR, GBP, KES, INR and other currencies. The rates come from one public source (open.er-api.com), fetched by Veylo's server and cached for at most an hour; when it can't be reached the screen says "rate unavailable". An estimate is never used to work out, sign or send a payment.
-- Bank cash-out in local currency through licensed partners (after the hackathon).
-
-## Private or direct
-
-Each contractor picks one:
-
-- **Private:** paid in confidential USDC on NEAR. The payout isn't publicly linked to your company. Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it.
-- **Direct:** paid in public USDC to a NEAR account, visible on the NEAR explorer. _Coming soon:_ this route is waiting for its mainnet test (spike S-N in [VERIFICATION.md](VERIFICATION.md)).
-
-Private isn't anonymous: the contractor, Veylo and the settlement service can still see the details. The **Privacy** screen shows the difference live from NEAR mainnet, and the **Verify** page re-checks a direct payout from NEAR on every load.
-
-## Why there's no gas
-
-Payouts aren't on-chain transfers you pay gas for. Your treasury holds its USDC in its NEAR Intents balance, and each payout is authorised by a **signed intent**: a message your wallet signs off-chain. NEAR Intents settles it, so you don't need a relayer or a gas token, and neither does anyone you pay. See the 1Click signed-intent flow: <https://docs.near-intents.org/integration/distribution-channels/1click-api/quickstart/signed-intent-execution>.
-
-## Reading the CSV export
-
-Export it from **Ledger → Export CSV** for any date range. It lists live payouts only (never test or simulated ones). Dates are ISO 8601 in UTC; amounts are exact to 6 decimal places.
+Export it from **Ledger → Export CSV** for any date range. It lists live payouts only, never test or simulated ones. Dates are ISO 8601 in UTC, and amounts are exact to 6 decimal places.
 
 | Column                     | Meaning                                                               |
 | -------------------------- | --------------------------------------------------------------------- |
 | `date`                     | When the payout reached its final status (ISO 8601, UTC).             |
-| `pay run period`           | The pay run it belongs to, e.g. `2026-11`.                            |
+| `pay run period`           | The pay run it belongs to, such as `2026-11`.                         |
 | `contractor name`          | Who was paid.                                                         |
 | `amount`                   | What the contractor received.                                         |
 | `currency`                 | Always `USDC`.                                                        |
-| `route`                    | How they were paid, e.g. `USDC confidential balance on NEAR`.         |
-| `chain`                    | Where it was delivered, e.g. `NEAR`.                                  |
+| `route`                    | How they were paid, such as `USDC confidential balance on NEAR`.      |
+| `chain`                    | Where it was delivered, such as `NEAR`.                               |
 | `recipient`                | The contractor's payout address.                                      |
 | `delivery fee`             | The network's delivery fee.                                           |
 | `total fee`                | Everything paid on top of `amount`.                                   |
@@ -162,60 +189,184 @@ Export it from **Ledger → Export CSV** for any date range. It lists live payou
 | `transaction link`         | A link to look the payout up, or `confidential` for a private payout. |
 | `payslip ID`               | The payslip's ID, as shown in the app.                                |
 
-Example rows (made-up values):
+</details>
 
-```csv
-date,pay run period,contractor name,amount,currency,route,chain,recipient,delivery fee,total fee,status,reconciled,refunded amount,deposit address,intent hash,NEAR tx hash,destination tx hash,destination explorer URL,transaction link,payslip ID
-2026-11-26T10:05:00.000Z,2026-11,Ada Lovelace,4200.000000,USDC,USDC confidential balance on NEAR,NEAR,ada-l.near,0.000000,0.420000,SUCCESS,yes,0.000000,8f3c…,ih-1…,2cJr…,,,confidential,6f1e2d3c-0000-4000-8000-000000000001
+## What Veylo's server does, and what it never does
+
+| Veylo's server does                                                                             | Veylo's server never does                                                                                            |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Stores your team, their salaries, schedules and records (ledger, payslips, audit log).          | See a private key: not your treasury wallet's, not the Veylo wallet's.                                               |
+| Stores the payee list your wallet signed, and the signatures with it.                           | Sign anything for your treasury.                                                                                     |
+| Fetches quotes and intent messages from 1Click, and submits the intents you signed.             | Move funds. Only a payout you approved in your wallet can leave the treasury.                                        |
+| Polls each payout's status and reconciles it with the treasury's balance.                       | Change who gets paid or how much: your browser refuses a list or a quote your wallet didn't sign.                    |
+| Keeps the 1Click partner key and session tokens, encrypted, on the server tier that needs them. | Log signed payloads. Request logs carry no headers, bodies or query strings, and signatures and tokens are redacted. |
+| Reads currency rates for display-only estimates.                                                | Use a currency estimate to work out, sign or send a payment.                                                         |
+| Writes each email to an outbox table (nothing sends it yet).                                    | Let an email account unlock a wallet. A password reset never restores a wallet.                                      |
+
+## What NEAR provides
+
+| NEAR piece                                   | What Veylo uses it for                                                                                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| NEAR Intents (`intents.near`, `intents.far`) | The treasury. It holds its USDC as a NEAR Intents balance and pays from it. `intents.near` holds the public balance, and `intents.far` is the verifier for the confidential balance. |
+| 1Click API                                   | NEAR Intents' swap and deposit API. Veylo uses it for quotes, deposit addresses, funding and status. Every quote's signature is checked in the browser against the pinned key.       |
+| Confidential Intents                         | The confidential balance that private payouts are paid from.                                                                                                                         |
+| NEP-413 signing                              | How a wallet signs the sign-in message, the payee list and each payout. The wallet layer signs messages only, never transactions.                                                    |
+| `@hot-labs/near-connect` (HOT)               | How wallets connect. HOT's open wallet connector provides the wallet list; Veylo enables 7 wallets from it ([Wallets](#wallets)).                                                    |
+| Implicit accounts                            | The Veylo wallet's account is the 64-character hex of its public key, which any NEAR wallet can use. It needs no registration to sign an intent.                                     |
+| NEP-141 USDC                                 | The money: Circle's native USDC on NEAR. NEAR RPC is read directly from the browser to check keys and balances.                                                                      |
+
+**Mandatory integrations: none.** No integration is mandatory for this hackathon (Q-011). Veylo uses these because they are what it is built on.
+
+**Why there's no gas and no relayer.** A relayer pays the gas for a transaction a user signed. NEAR's meta-transactions tutorial describes a relayer that pays gas from its own funded account for a signed delegate action, and that can choose which calls it sponsors ([meta transactions](https://docs.near.org/web3-apps/tutorials/meta-transactions)). Veylo doesn't run a contract of its own, and a payout isn't a call to one. It is an off-chain signed intent from the treasury's NEAR Intents balance: the wallet signs a message, and NEAR Intents settles it. Nobody pays gas, so there is nothing for a relayer to sponsor. The flow is documented here: [signed intent execution](https://docs.near-intents.org/integration/distribution-channels/1click-api/quickstart/signed-intent-execution). Funding is different: sending USDC from your own NEAR wallet is an ordinary transaction, and that wallet pays NEAR for it.
+
+## Wallets
+
+Veylo enables 7 NEAR wallets: **HOT Wallet, Meteor Wallet, Intear Wallet, MyNearWallet, OKX Wallet, NEAR Mobile and Nightly Wallet.** A wallet is enabled only if it signs a message with NEP-413, needs no hardware or relay permission, talks only to hosts that were reviewed, and ships code that is pinned by SHA-256. Seven others were left out, each with its reason. The full list, the hashes and the hosts are in [docs/WALLETS.md](docs/WALLETS.md).
+
+Whichever wallet signs, the app verifies the signature over the exact bytes, the key and the account itself, every time, and the browser gates are the same.
+
+**The Veylo wallet.** At sign-up you can create a wallet with no app to install. Its key is generated in your browser, on the separate wallet web address, and kept encrypted there, protected by a passkey (WebAuthn) or a separate wallet password (Argon2id). A recovery phrase is shown once and must be confirmed before the wallet can be used. Veylo's server never sees the key. If you lose this device and your recovery phrase, Veylo can't recover it.
+
+**Tested with a real wallet:** Meteor only. The other six were read and fixture-tested; a live test of each needs the founder.
+
+## Current status
+
+| Surface                                                           | Status         | Detail                                                                                                                                                                              |
+| ----------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web app, wallet bridge and API on Vercel                          | Live           | PostgreSQL on Neon, migrations applied, the deployed files checked byte for byte against the reviewed build.                                                                        |
+| Accounts, team, contractors, CSV import, schedules, roles, ledger | Live           | Stored in the database. Every query is scoped to one organisation.                                                                                                                  |
+| Payslips, statements, CSV export, audit log, verify page          | Live           | PDFs carry a verify link. The verify page reads NEAR on every load.                                                                                                                 |
+| Browser gates A, B, B2, C and F                                   | Live           | Tested against recorded real 1Click quotes, including tampered ones. The demo's tamper test shows them failing on purpose.                                                          |
+| Funding with USDC on NEAR (one-time deposit address)              | Live           | The quote and its status work without the partner key. A same-asset deposit has not been made on mainnet yet (spike S-F1).                                                          |
+| Funding with USDC from Base, Arbitrum or Solana, USDT from BNB    | Live           | Quoted by NEAR Intents. USDT from BNB Smart Chain was tested on mainnet by a test script (EVIDENCE rows 1 to 5). The others are fixture-tested.                                     |
+| Payouts, private and direct (USDC)                                | Fixture-tested | Live quotes need the 1Click partner key, which isn't set on the live app yet. Mechanisms were proven on mainnet by test scripts. Direct USDC to a NEAR account waits for spike S-N. |
+| Seven NEAR wallets                                                | Fixture-tested | Only Meteor was tried with a real wallet.                                                                                                                                           |
+| The Veylo wallet                                                  | Fixture-tested | Run in browser tests across two real origins. Its mainnet test (spike S-EW) has not run.                                                                                            |
+| Contractor portal: payslips, private balance, payout address      | Live           | The contractor's own view only.                                                                                                                                                     |
+| Local-currency estimates                                          | Live           | Display only. Shows "rate unavailable" when the source can't be reached.                                                                                                            |
+| Funding with NEAR, or USDT on NEAR                                | Coming soon    | Waiting for live tests (spikes S-F2 and S-FT).                                                                                                                                      |
+| Payouts in NEAR                                                   | Coming soon    | Quoted at payout time. Waiting for its live test (spike S-NR). Direct only.                                                                                                         |
+| Cash-out from a contractor's private balance                      | Coming soon    | Proven by a test script (EVIDENCE rows 24 to 26). The portal's version waits for spike S-P.                                                                                         |
+| Email delivery                                                    | Coming soon    | Messages are written to an outbox and nothing sends them yet. The screens say so.                                                                                                   |
+| Mainnet evidence                                                  | See the file   | [docs/EVIDENCE.md](docs/EVIDENCE.md), exactly as it stands: product payouts "None yet", and 31 transactions from test scripts (not the product).                                    |
+
+**Mainnet evidence.** The mechanisms Veylo relies on were tested on NEAR mainnet with tiny amounts (0.03 to 2 USDC) by test scripts, not by the product. [docs/EVIDENCE.md](docs/EVIDENCE.md) lists every transaction, and `pnpm verify` re-checks each row against public RPC with no keys: funding a treasury through a 1Click deposit address, payouts from that balance (public and confidential) delivered on other chains, a shield from the public to the confidential balance, and a cash-out from the confidential balance. One private receipt between two confidential balances has no public transaction by design, so it can't be re-checked. EVIDENCE.md section 1, payouts made by the product itself, says "None yet." NEAR Intents has no testnet (Q-007), so these tests use mainnet. Every remaining test is prepared in [VERIFICATION.md](VERIFICATION.md) and refuses to run without the founder's approval.
+
+## Safety and tests
+
+- **Browser gates fail closed.** Any failed check locks Approve. Tamper checks change one field of a valid quote, payee list or payout message and expect a refusal; the demo shows this live.
+- **One organisation can't see another.** Every query is scoped to the signed-in organisation, and a dedicated suite tries to cross the line.
+- **Nothing is claimed beyond the evidence.** Tests fail if this README or the app's copy claims to be the best, the sole or a one-off, or promises anything Veylo doesn't offer.
+- **Every page is checked at many sizes.** A crawler follows every link and button at 17 screen sizes from 320 px to 1920 px in Chrome, with axe accessibility checks. The landing page is checked at 34 sizes in Chromium and WebKit.
+
+| Check                                  | Latest result                             |
+| -------------------------------------- | ----------------------------------------- |
+| `pnpm test` (all tests)                | 2767 tests passed, 7 skipped, in 94 files |
+| Tenant isolation suite                 | 238 of 238 passed                         |
+| Address validation suite               | 73 of 73 passed                           |
+| Mainnet evidence re-check (public RPC) | 31 of 31 passed                           |
+| `pnpm demo`                            | 19 of 19 checks passed                    |
+| Deployed app, checked over the network | 47 of 47 checks passed                    |
+
+## Quick start
+
+**Requirements:** Node 24 and pnpm 11 (set in `package.json`). A Postgres database is needed only for `pnpm dev:wallet` and the API.
+
+```
+pnpm install --frozen-lockfile
 ```
 
-## Safety, in one paragraph
+| Command                                | What it does                                                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev:web`                         | The app with demo data at http://localhost:3000. Nothing is saved, signed or sent.                                              |
+| `pnpm dev:wallet`                      | The app with a real wallet and a local database. The steps are in [docs/DEPLOY.md](docs/DEPLOY.md) section 13.                  |
+| `pnpm demo`                            | The whole story with no keys, 19 numbered checks.                                                                               |
+| `pnpm build`                           | Builds the API. The web app builds with `pnpm --filter @veylo/web build`.                                                       |
+| `pnpm verify`                          | Typecheck, every test, and the mainnet evidence re-check.                                                                       |
+| `pnpm --filter @veylo/web check:pages` | The page crawler, 17 screen sizes and axe. Needs Chrome. `check:embedded`, `check:browser` and `check:lighthouse` are siblings. |
+| `pnpm wallets:refresh`                 | Prints what changed in the wallet manifest. Writes nothing without the founder's approval.                                      |
 
-Your treasury wallet is what adds someone to your payee list, and your browser verifies that signed list on NEAR itself. Before you approve a payout, your browser checks that the quote is signed by NEAR Intents, pays someone on your signed list, uses a key your treasury controls, and pays exactly the right amount. If anything doesn't match, approving is locked. A payee's address change waits 24 hours before it can be approved, and Veylo's own servers can't change who gets paid or how much.
+## Environment variables
 
-## Built with
+Names only. Never put a value in this repository, and never print a secret. Each process loads only the variables it needs and fails at start, naming the one that is missing.
 
-- **Language and tools:** TypeScript 5.9.3, Node 24, pnpm 11, Vitest 4.1.12, Prettier 3.9.10, esbuild 0.28.2, tsx 4.23.15, Zod 4.6.7.
-- **API:** Fastify 5.12.8 (with cookie, cors, helmet and rate-limit plugins), Drizzle ORM 0.45.4, PostgreSQL (`pg` 8.23.1), pg-boss 12.38.1 (job queue), pino 10.4.0.
-- **Web:** Next.js 16.4.3 (static export), React 19.3.1, three.js 0.186.1, Phosphor Icons 2.1.10, Fontsource (Inter Tight, IBM Plex Mono, Instrument Serif) 5.3.0, sharp 0.35.5 (images).
-- **NEAR:** `@hot-labs/near-connect` 0.12.0 (wallet connection), near-api-js 7.4.0 and `@defuse-protocol/intents-sdk` 0.95.0 (in the `verification/` mainnet test scripts), `@noble/curves`, `@noble/hashes`, `@noble/ciphers` 2.4.0, `@scure/base` 2.4.0 and `@scure/bip39` 2.4.0 (cryptography and the recovery phrase), `qrcode-generator` 2.0.4 (the funding QR code).
-- **Checks:** Playwright 1.64.1 (browser), axe-core 4.14.0 (accessibility), Lighthouse 13.5.0 (performance).
-- **Services:** NEAR Intents (1Click API), NEAR RPC (fastnear), the Meteor wallet.
-- **AI coding assistant:** Claude Code (Anthropic) wrote and tested the code with the founder.
-- **Written during the hackathon:** all code in this repository was written during the hackathon window (from the 2026-10-19 announcement), with no pre-existing project (HACKATHON.md Q-001 and Q-005).
+| Name                              | Required     | Service         | Description                                                                                               |
+| --------------------------------- | ------------ | --------------- | --------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                    | Yes          | API, workers    | PostgreSQL connection URL (`postgres://` or `postgresql://`). A secret.                                   |
+| `SESSION_ENCRYPTION_KEY`          | Yes          | API, settlement | 32 random bytes, base64. Encrypts 1Click session tokens. A secret.                                        |
+| `AUTH_RECIPIENT`                  | Yes          | API             | The app identifier wallets sign for.                                                                      |
+| `WEB_ORIGIN`                      | Yes          | API             | The web app's origin, with no path. Allowed by CORS.                                                      |
+| `NODE_ENV`                        | Yes          | All             | `development`, `test` or `production`.                                                                    |
+| `LOG_LEVEL`                       | Yes          | All             | `fatal`, `error`, `warn`, `info`, `debug` or `trace`.                                                     |
+| `ONECLICK_PARTNER_KEY`            | No           | API, settlement | The 1Click partner key. Without it, live payout quotes say "Live quotes are not connected yet". A secret. |
+| `CRON_SECRET`                     | No           | API on Vercel   | At least 32 characters. The bearer token the cron routes check. Without it they are not served. A secret. |
+| `NEARAI_API_KEY`                  | Agent worker | `worker:agents` | NEAR AI Cloud API key. A secret.                                                                          |
+| `AGENT_KEY_MASTER_KEY`            | Agent worker | `worker:agents` | 32 random bytes, base64. Never given to the API. A secret.                                                |
+| `NEAR_RPC_URL`                    | No           | API             | NEAR RPC for the sign-in key check. Default `https://rpc.fastnear.com`.                                   |
+| `SESSION_TTL_HOURS`               | No (24)      | API             | Session lifetime, 1 to 720.                                                                               |
+| `PORT`                            | No (3000)    | API             | Port the API listens on.                                                                                  |
+| `TRUST_PROXY_HOPS`                | No (0)       | API             | Proxy hops trusted for the client IP used by rate limits. 1 on Vercel (measured).                         |
+| `LOG_CLIENT_IP`                   | No (false)   | API             | `true` only during the proxy check, then off.                                                             |
+| `TREASURY_LIMIT_ORG_PER_HOUR`     | No (60)      | API             | Live-quote and signing-request limit per organisation, per route, per hour.                               |
+| `TREASURY_LIMIT_USER_PER_HOUR`    | No (30)      | API             | The same limit per user.                                                                                  |
+| `PAYOUT_QUOTE_DEADLINE_MINUTES`   | No (15)      | API             | How long a payout quote stays valid, 1 to 60.                                                             |
+| `REVIEW_AMOUNT_DEVIATION_PERCENT` | No (25)      | API             | The change in an amount that flags a pay-run item.                                                        |
+| `ONECLICK_QUOTE_PUBLIC_KEY`       | No           | API             | 1Click's quote-signing key. Default: the key pinned in the code.                                          |
+| `EVIDENCE_*_RPC_URL`              | No           | `pnpm verify`   | Public RPC endpoints (NEAR, Base, Arbitrum, BSC, Solana) for the evidence re-check. No keys.              |
 
-## Proven on mainnet
+[.env.example](.env.example) lists them all, empty. [docs/DEPLOY.md](docs/DEPLOY.md) section 3 says which service loads which.
 
-The mechanisms Veylo relies on were tested on NEAR mainnet with tiny amounts (0.03 to 2 USDC) by test scripts, not by the product. [docs/EVIDENCE.md](docs/EVIDENCE.md) lists every transaction, and `pnpm verify` re-checks each row against public RPC with no keys:
+## Repository layout
 
-- funding a treasury through a 1Click deposit address, which settles into the NEAR Intents balance;
-- payouts from that balance, public and confidential, delivered on other chains;
-- a private receipt from one confidential balance to another, which has no public transaction by design;
-- a cash-out from the confidential balance.
+```
+apps/
+  api/            Fastify API, settlement worker, Vercel entry (src/, build.mjs, build-vercel.mjs)
+  web/            Next.js static export: landing page, owner app, contractor portal
+    bridge/       The wallet bridge origin and the embedded wallet
+    scripts/      Build, serve and browser-check scripts
+    src/          app, screens, landing, gates, wallet, signing, proof, portal, reports
+packages/
+  core/           Pure money and pay-run rules, no network or database
+  intents/        NEAR Intents and 1Click client, NEP-413, quote and payee checks
+  chains/         Address validation, NEAR RPC, explorers
+  contract/       Request and response schemas shared by the API and the web app
+  db/             Drizzle schema, migrations, repositories
+  config/         Environment schema
+  secrets/        Envelope encryption
+tools/verify/     pnpm verify, the demo, the evidence re-check, the live check
+docs/             DEPLOY, EVIDENCE, FUNDING, WALLETS, PUBLIC-READINESS, ECOSYSTEM, SUBMISSION
+design/           Images, screenshots and the reference landing page
+verification/     Mainnet test scripts, kept apart and never imported by the product
+```
 
-Not yet proven: payouts made by the product itself (EVIDENCE.md section 1 says "None yet"), the direct USDC route on NEAR (spike S-N), funding with USDC on NEAR through 1Click as a same-asset quote, funding with NEAR (S-F2) or USDT on NEAR (S-FT), payouts in NEAR (S-NR), the Veylo embedded wallet on mainnet (S-EW), a contractor's cash-out from the portal (S-P), and each connected wallet other than Meteor with a real wallet. All of them are prepared in [VERIFICATION.md](VERIFICATION.md) and refuse to run without the founder's approval. NEAR Intents has no testnet (HACKATHON.md Q-007), so these tests use mainnet.
+Also at the top level: [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [VERIFICATION.md](VERIFICATION.md), [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md) and [docs/PUBLIC-READINESS.md](docs/PUBLIC-READINESS.md).
 
-## Hackathon
+## Roadmap
 
-Built at NEAR HACKATHON, for the Real-World Money (`realworld`) and Privacy & Private AI (`privacy`) tracks. Licence: MIT ([LICENSE](LICENSE)).
+After the hackathon:
 
-## Roadmap after the hackathon
+- **Several approvers for a pay run.** The design is in [docs/ECOSYSTEM.md](docs/ECOSYSTEM.md).
+- **Other chains.** The code for Base, Arbitrum and Solana payouts exists and is switched off.
+- **Bank cash-out in local currency through licensed partners (after the hackathon).** Not built.
+- **The remaining mainnet tests** in [VERIFICATION.md](VERIFICATION.md), so the "coming soon" items can go live.
 
-- Other chains: the code for Base, Arbitrum and Solana payouts exists and is switched off.
-- Several approvers for a pay run (the design is in [docs/ECOSYSTEM.md](docs/ECOSYSTEM.md)).
-- Bank cash-out in local currency through licensed partners (after the hackathon).
+## Built at NEAR HACKATHON
 
----
+Built at NEAR HACKATHON, for the Real-World Money (`realworld`) and Privacy & Private AI (`privacy`) tracks. All code in this repository was written during the hackathon window (from the 2026-10-19 announcement), with no pre-existing project (Q-001 and Q-005).
 
-## For developers
+**AI disclosure.** Claude Code (Anthropic) wrote and tested the code with the founder.
 
-- **Stack:** TypeScript monorepo (pnpm). API: Fastify and PostgreSQL (`apps/api`). Web: Next.js static export with a strict CSP (`apps/web`), plus a separate wallet bridge origin (`apps/web/bridge`). Shared packages: `packages/core`, `packages/intents`, `packages/chains`, `packages/contract`, `packages/db`.
-- **Check everything:** `pnpm install --frozen-lockfile`, then `pnpm verify`.
-- **The whole story, no keys:** `pnpm demo`. **Click through with demo data:** `pnpm dev:web`. **A real wallet, locally:** `pnpm dev:wallet`.
-- **Browser checks** (need Chrome): `pnpm --filter @veylo/web check:pages` (a crawler that follows every link and button, the loading, error and empty state of every page, every page at 17 screen sizes from 320 px to 1920 px, and axe), `check:embedded` (the Veylo wallet over two real origins), `check:browser` and `check:lighthouse`. **Wallets:** [docs/WALLETS.md](docs/WALLETS.md); `pnpm wallets:refresh` prints what changed in the wallet manifest and writes nothing without the founder's approval.
-- **Deploy:** [docs/DEPLOY.md](docs/DEPLOY.md). Architecture: [ARCHITECTURE.md](ARCHITECTURE.md). Decisions: [DECISIONS.md](DECISIONS.md).
-- **Security:** [SECURITY.md](SECURITY.md). **Privacy:** [PRIVACY.md](PRIVACY.md). **Public readiness:** [docs/PUBLIC-READINESS.md](docs/PUBLIC-READINESS.md).
+**Libraries and services.**
 
-## Licence
+| Area               | What                                                                                                                                                                                                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language and tools | TypeScript 5.9.3, Node 24, pnpm 11, Vitest 4.1.12, Prettier 3.9.10, esbuild 0.28.2, tsx 4.23.15, Zod 4.6.7                                                                                                                                                             |
+| API                | Fastify 5.12.8 (cookie, cors, helmet and rate-limit plugins), Drizzle ORM 0.45.4, PostgreSQL (`pg` 8.23.1), pg-boss 12.38.1, pino 10.4.0                                                                                                                               |
+| Web                | Next.js 16.4.3 (static export), React 19.3.1, three.js 0.186.1, Phosphor Icons 2.1.10, Fontsource (Inter Tight, IBM Plex Mono, Instrument Serif) 5.3.0, sharp 0.35.5                                                                                                   |
+| NEAR and crypto    | `@hot-labs/near-connect` 0.12.0, near-api-js 7.4.0 and `@defuse-protocol/intents-sdk` 0.95.0 (in the `verification/` test scripts only), `@noble/curves`, `@noble/hashes`, `@noble/ciphers` 2.4.0, `@scure/base` 2.4.0, `@scure/bip39` 2.4.0, `qrcode-generator` 2.0.4 |
+| Checks             | Playwright 1.64.1 (Chromium and WebKit), axe-core 4.14.0, Lighthouse 13.5.0                                                                                                                                                                                            |
+| Services           | NEAR Intents (1Click API), NEAR RPC (fastnear), Vercel, Neon                                                                                                                                                                                                           |
+
+## License
 
 MIT. See [LICENSE](LICENSE).

@@ -146,8 +146,11 @@ describe("one bridge page per wallet, each with its own CSP", () => {
   it("a wallet's page connects only to that wallet's reviewed hosts and NEAR RPC", () => {
     for (const w of ENABLED_WALLETS) {
       const p = bridgePolicy({ ...opts, wallet: w });
+      const twins = w.allow.connect
+        .filter((h) => h.startsWith("https://"))
+        .map((h) => h.replace("https://", "wss://"));
       expect(p.connect, w.id).toEqual([
-        ...new Set([...w.allow.connect, "https://rpc.fastnear.com"]),
+        ...new Set([...w.allow.connect, ...twins, "https://rpc.fastnear.com"]),
       ]);
       expect(p.header).not.toContain("api.veylo.test");
       expect(p.header).toContain("frame-ancestors https://app.veylo.test");
@@ -261,5 +264,24 @@ describe("addresses on the developer's own computer", () => {
         storage: true,
       }),
     ).toEqual({ allowsOpen: ["https://a.example"], storage: true });
+  });
+});
+
+describe("a wallet page may fetch its own pinned executor (W7)", () => {
+  const opts = {
+    appOrigin: "https://app.veylo.test",
+    nearRpcUrl: "https://rpc.fastnear.com",
+    apiOrigin: "https://api.veylo.test",
+  };
+  it("connect-src names 'self' first, so /wallets/<file> loads, and still never the API", () => {
+    for (const w of ENABLED_WALLETS) {
+      const p = bridgePolicy({ ...opts, wallet: w });
+      expect(p.header, w.id).toMatch(/connect-src 'self' /);
+      expect(p.meta, w.id).toMatch(/connect-src 'self' /);
+      expect(p.header).not.toContain("api.veylo.test");
+    }
+  });
+  it("the Veylo wallet page still connects to nothing", () => {
+    expect(embeddedPolicy({ appOrigin: opts.appOrigin }).header).toContain("connect-src 'none'");
   });
 });

@@ -93,6 +93,8 @@ describe("the live-quote guard", () => {
         .filter((k) => /quote/i.test(k))
         .sort(),
     ).toEqual([
+      // A message string, not a way to quote: what a deployment without a partner key says (W7).
+      "LIVE_QUOTES_OFF",
       "ONECLICK_QUOTE_KEY",
       "QuoteGuardError",
       "acceptanceQuote",

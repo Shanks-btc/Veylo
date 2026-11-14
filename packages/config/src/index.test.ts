@@ -278,3 +278,34 @@ describe("errors", () => {
     }
   });
 });
+
+describe("the hosted deployment (W7)", () => {
+  it("the API starts without the 1Click partner key: live quotes are simply not connected", () => {
+    const { ONECLICK_PARTNER_KEY, ...noKey } = fullApi;
+    void ONECLICK_PARTNER_KEY;
+    expect(loadApiConfig(noKey).ONECLICK_PARTNER_KEY).toBeUndefined();
+    const { ONECLICK_PARTNER_KEY: k2, NEARAI_API_KEY, AGENT_KEY_MASTER_KEY, ...settle } = fullApi;
+    void k2;
+    void NEARAI_API_KEY;
+    void AGENT_KEY_MASTER_KEY;
+    expect(() => loadSettlementWorkerConfig(settle)).not.toThrow();
+  });
+
+  it("the agent worker still refuses to start without the key, naming it", () => {
+    const { ONECLICK_PARTNER_KEY, ...noKey } = full;
+    void ONECLICK_PARTNER_KEY;
+    expect(captured(() => loadWorkerConfig(noKey)).problems.map((p) => p.name)).toEqual([
+      "ONECLICK_PARTNER_KEY",
+    ]);
+  });
+
+  it("CRON_SECRET is optional, at least 32 characters, and never echoed in an error", () => {
+    expect(loadApiConfig(fullApi).CRON_SECRET).toBeUndefined();
+    const secret = "c".repeat(40);
+    expect(loadApiConfig({ ...fullApi, CRON_SECRET: secret }).CRON_SECRET).toBe(secret);
+    const short = "short-secret-sentinel";
+    const err = captured(() => loadApiConfig({ ...fullApi, CRON_SECRET: short }));
+    expect(err.problems.map((p) => p.name)).toEqual(["CRON_SECRET"]);
+    expect(err.message).not.toContain(short);
+  });
+});

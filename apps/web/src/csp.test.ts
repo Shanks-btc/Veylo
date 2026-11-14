@@ -95,7 +95,13 @@ describe("wallet bridge CSP (L44)", () => {
     wallet: meteor,
   });
   it("connects only to the wallet reviewed hosts and NEAR RPC, never the API", () => {
-    expect(p.connect).toEqual([...(meteor.allow.connect as string[]), "https://rpc.fastnear.com"]);
+    const hosts = meteor.allow.connect as string[];
+    // Each reviewed https host also gets its wss:// twin (a WebSocket to the same host), nothing else.
+    const twins = hosts
+      .filter((h) => h.startsWith("https://"))
+      .map((h) => h.replace("https://", "wss://"));
+    expect(p.connect).toEqual([...new Set([...hosts, ...twins, "https://rpc.fastnear.com"])]);
+    expect(p.connect.filter((h) => h.startsWith("wss://"))).toEqual(twins);
     expect(p.header).not.toContain("api.veylo.test");
     expect(p.meta).not.toContain("api.veylo.test");
   });

@@ -17,7 +17,13 @@ function assertNoApi(origins, apiOrigin) {
 /** A wallet entry from the lock: { allow: { connect, img, frame } }. */
 export function bridgePolicy({ appOrigin, nearRpcUrl, apiOrigin, wallet }) {
   const rpc = new URL(nearRpcUrl).origin;
-  const connect = dedupe([...wallet.allow.connect, rpc]);
+  // A wallet that talks to its own host over a WebSocket needs the wss:// form of that same host: a
+  // CSP https:// source does not cover it (Meteor's relay was refused in the first live test, W7).
+  // Only the reviewed hosts get a wss:// twin; nothing else is opened.
+  const sockets = wallet.allow.connect
+    .filter((origin) => origin.startsWith("https://"))
+    .map((origin) => `wss://${origin.slice("https://".length)}`);
+  const connect = dedupe([...wallet.allow.connect, ...sockets, rpc]);
   assertNoApi([...connect, ...wallet.allow.img, ...wallet.allow.frame], apiOrigin);
   const common = [
     "default-src 'none'",
@@ -25,7 +31,10 @@ export function bridgePolicy({ appOrigin, nearRpcUrl, apiOrigin, wallet }) {
     "style-src 'self' 'unsafe-inline'",
     `img-src ${dedupe(["'self'", "data:", ...wallet.allow.img]).join(" ")}`,
     "font-src 'self'",
-    `connect-src ${connect.join(" ")}`,
+    // 'self' is the bridge's own origin: the wallet's pinned executor is fetched from there
+    // (/wallets/<file>), which the first live test showed was refused without it (W7). It reaches
+    // nothing but the bridge's own static files; the API is on another origin and stays unreachable.
+    `connect-src ${["'self'", ...connect].join(" ")}`,
     `frame-src ${dedupe(["'self'", ...wallet.allow.frame]).join(" ")}`,
     "object-src 'none'",
     "base-uri 'none'",

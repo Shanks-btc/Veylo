@@ -1,6 +1,8 @@
 import "../styles/landing.css";
 import type { Metadata } from "next";
 import { LandingNav } from "../landing/nav";
+import { Problem, Solution } from "../landing/pitch";
+import { CardFx } from "../landing/card-fx";
 import { RevealController } from "../landing/reveal-controller";
 import {
   Closing,
@@ -9,7 +11,6 @@ import {
   Footer,
   Hero,
   How,
-  Marquee,
   QuoteBand,
   StorySection,
   Who,
@@ -51,14 +52,16 @@ export default function Landing() {
       </a>
       <LandingNav />
       <RevealController />
+      <CardFx />
       <main id="main">
         <Hero />
-        <Marquee />
-        <StorySection />
+        <Problem />
+        <Solution />
+        <How />
         <Features />
+        <StorySection />
         <Who />
         <QuoteBand />
-        <How />
         <Faq />
         <Closing />
       </main>

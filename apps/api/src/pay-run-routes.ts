@@ -50,7 +50,7 @@ import { OneClickError, QuoteGuardError, type PayoutQuote } from "@veylo/intents
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { z } from "zod";
 import { parse, routeEnabled, type Deps } from "./app.js";
-import { AppError, conflict, notFound } from "./errors.js";
+import { AppError, conflict, liveQuotesOff, notFound } from "./errors.js";
 import type { Guards } from "./guards.js";
 import { createSessionAccess } from "./oneclick-session.js";
 import { destinationPayable, loadPayeeContext, signedPayee } from "./payability.js";
@@ -381,6 +381,7 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
   app.get("/orgs/:orgId/pay-runs", async (request) => {
     const { orgId } = parse(orgParams, request.params);
     await guards.requireMember(request, orgId);
+    await deps.refresh?.(orgId);
     const runs = await listPayRuns(deps.db, orgId);
     return {
       payRuns: runs.map((r) => ({
@@ -401,6 +402,7 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
   app.get("/orgs/:orgId/pay-runs/:payRunId", async (request) => {
     const { orgId, payRunId } = parse(runParams, request.params);
     await guards.requireMember(request, orgId);
+    await deps.refresh?.(orgId);
     return view(orgId, payRunId);
   });
 
@@ -602,6 +604,8 @@ export async function payRunRoutes(app: FastifyInstance, deps: Deps, guards: Gua
     const { orgId, payRunId } = parse(runParams, request.params);
     const { session: s } = await guards.requireRole(request, orgId, OWNER_ONLY);
     limiter.check("pay-run-quote", orgId, s.userId);
+    // No 1Click partner key on this deployment (W7): say so before any attempt is touched.
+    if (deps.config.liveQuotes === false) throw liveQuotesOff();
     const body = parse(quoteBody, request.body ?? undefined);
     const run = await requireRun(orgId, payRunId);
     if (run.status !== "Quoting") throw wrongStatus(run.status);

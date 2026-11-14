@@ -592,6 +592,13 @@ export const eventRefresh = z.object({ eventId: uuid, status: z.string(), status
 // --- Health ---
 export const healthResponse = z.object({ status: z.literal("ok") });
 export const readyResponse = z.object({ status: z.literal("ready") });
+/** What this deployment can do (W7): the screens say so rather than pretend. */
+export const featuresResponse = z.object({
+  emailDelivery: z.boolean(),
+  liveQuotes: z.boolean(),
+  /** A funding quote can be made (true even with no 1Click partner key, W7.3). */
+  fundingQuotes: z.boolean(),
+});
 
 /** The API's error body, for every non-2xx JSON response. */
 export const errorResponse = z.object({
@@ -602,6 +609,7 @@ export const errorResponse = z.object({
 export const ROUTES = {
   "GET /health": healthResponse,
   "GET /ready": readyResponse,
+  "GET /features": featuresResponse,
   "POST /auth/challenge": challengeResponse,
   "POST /auth/verify": verifyResponse,
   "POST /auth/logout": ok,

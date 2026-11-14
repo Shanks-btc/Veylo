@@ -16,6 +16,7 @@ import type { FxClient } from "./fx.js";
 import { settingsRoutes } from "./settings-routes.js";
 import { AppError, invalidRequest } from "./errors.js";
 import { contractorRoutes } from "./contractor-routes.js";
+import { cronRoutes, type CronJobs } from "./cron-routes.js";
 import { createGuards } from "./guards.js";
 import { loggerOptions } from "./logging.js";
 import { orgRoutes } from "./org-routes.js";
@@ -38,6 +39,18 @@ export type Deps = {
   secrets: SecretBox;
   /** Display-only FX rates (W6). Optional: without it the rates are unavailable. */
   fx?: FxClient;
+  /**
+   * Hosted deployment only (W7): the internal cron routes and their shared secret. Absent, those
+   * routes are not served at all. The jobs are idempotent sweeps; none can quote, sign or submit
+   * anything new (settlement only follows up what a treasury wallet already signed).
+   */
+  cron?: { secret: string; jobs: CronJobs };
+  /**
+   * Hosted deployment only (W7): brings one organisation's payout statuses up to date. A status
+   * page calls it before it reads, because the hosted plan can only run the sweeps on a schedule
+   * of once a day. It never throws and is bounded in time; a failed refresh just reads what is stored.
+   */
+  refresh?: (orgId: string) => Promise<void>;
   config: {
     authRecipient: string;
     webOrigin: string;
@@ -63,6 +76,15 @@ export type Deps = {
      * tests may pass more so the options waiting on a spike stay covered. Never from the environment.
      */
     enabledFundingOrigins?: readonly string[];
+    /** False when no 1Click partner key is set (W7): live quotes fail closed. Default true. */
+    liveQuotes?: boolean;
+    /**
+     * Whether a funding quote can be made (W7.3). True even with no partner key: 1Click serves
+     * funding quotes keyless. Default true.
+     */
+    fundingQuotes?: boolean;
+    /** True only when an email provider is wired. None is yet, so the default is false (W7). */
+    emailDelivery?: boolean;
   };
   /** Tests capture log output here. */
   logStream?: NodeJS.WritableStream;
@@ -144,6 +166,13 @@ export async function buildServer(deps: Deps) {
       : reply.status(503).send({ status: "not_ready", reason: r.reason });
   });
 
+  // What this deployment can do, so the screens say so instead of pretending (W7). Nothing secret.
+  app.get("/features", async () => ({
+    emailDelivery: deps.config.emailDelivery ?? false,
+    liveQuotes: deps.config.liveQuotes ?? true,
+    fundingQuotes: deps.config.fundingQuotes ?? true,
+  }));
+
   const guards = createGuards(deps);
   await authRoutes(app, deps, guards);
   await accountRoutes(app, deps, guards);
@@ -157,6 +186,7 @@ export async function buildServer(deps: Deps) {
   await reportingRoutes(app, deps, guards);
   await scheduleRoutes(app, deps, guards);
   await settingsRoutes(app, deps, guards);
+  await cronRoutes(app, deps);
   return app;
 }
 

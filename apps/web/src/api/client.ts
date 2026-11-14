@@ -45,12 +45,14 @@ export type CallOptions<K extends RouteKey> = {
 };
 
 const SAFE_SEGMENT = /^[A-Za-z0-9._~-]+$/;
+/** A prefix such as /api, or none: plain segments only, no trailing slash. */
+const BASE_PATH = /^(\/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*$/;
 
 /** Fills `:name` segments. Each value must be a plain path segment, so nothing can be injected. */
 export function buildPath(template: string, params: Record<string, string> = {}): string {
   return template.replace(/:([A-Za-z]+)/g, (_m, name: string) => {
     const value = params[name];
-    if (value === undefined || !SAFE_SEGMENT.test(value)) {
+    if (value === undefined || !SAFE_SEGMENT.test(value) || value === "." || value === "..") {
       throw new ApiContractError(template, `bad or missing path parameter: ${name}`);
     }
     return value;
@@ -63,17 +65,30 @@ export type ApiClient = {
 
 export function createApiClient(options: {
   origin: string;
+  /**
+   * A path every request is under, such as /api (W7). On the hosted deployment the web app and the
+   * API sit on different *.vercel.app sites, which browsers treat as unrelated, so a sign-in cookie
+   * from the API would not be sent back. The web origin therefore forwards /api/* to the API, and
+   * the cookie belongs to the web origin.
+   */
+  basePath?: string;
   fetch: typeof globalThis.fetch;
 }): ApiClient {
   const origin = new URL(options.origin).origin;
+  const basePath = options.basePath ?? "";
+  if (!BASE_PATH.test(basePath)) throw new Error("the API base path must be plain segments");
   return {
     async call(key, call = {}) {
       const schema = ROUTES[key];
       const [method, template] = key.split(" ") as [Method<typeof key>, Path<typeof key>];
-      const url = new URL(buildPath(template, call.params as Record<string, string>), origin);
+      const url = new URL(
+        basePath + buildPath(template, call.params as Record<string, string>),
+        origin,
+      );
       for (const [k, v] of Object.entries(call.query ?? {}))
         if (v !== undefined) url.searchParams.set(k, v);
-      if (url.origin !== origin) throw new ApiContractError(key, "request left the API origin");
+      if (url.origin !== origin || (basePath && !url.pathname.startsWith(`${basePath}/`)))
+        throw new ApiContractError(key, "request left the API origin");
 
       let response: Response;
       try {

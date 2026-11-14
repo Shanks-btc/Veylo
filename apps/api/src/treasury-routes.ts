@@ -37,7 +37,7 @@ import {
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { z } from "zod";
 import { parse, type Deps } from "./app.js";
-import { AppError, conflict, notFound } from "./errors.js";
+import { AppError, conflict, liveQuotesOff, notFound } from "./errors.js";
 import type { Guards } from "./guards.js";
 import { createSessionAccess } from "./oneclick-session.js";
 import { createTreasuryLimiter } from "./rate-limit.js";
@@ -74,6 +74,7 @@ const rejectedSigner = () =>
 function oneClickFailure(err: unknown): never {
   if (err instanceof OneClickError) {
     if (err.kind === "rejected") throw new AppError(422, "QUOTE_REJECTED", err.detail);
+    if (err.kind === "not_connected") throw liveQuotesOff();
     throw new AppError(502, "ONECLICK_UNAVAILABLE", "1Click is not available. Try again");
   }
   throw err;
@@ -219,6 +220,7 @@ export async function treasuryRoutes(app: FastifyInstance, deps: Deps, guards: G
   app.get("/orgs/:orgId/treasury/balances", async (request) => {
     const { orgId } = parse(orgParams, request.params);
     await guards.requireMember(request, orgId);
+    await deps.refresh?.(orgId);
     const treasury = await requireTreasury(orgId);
 
     const publicAsOf = deps.clock();

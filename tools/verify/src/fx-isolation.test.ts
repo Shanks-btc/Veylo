@@ -36,7 +36,7 @@ const MONEY_PATHS = [
     (f) =>
       // The display-only files: the rate client, the settings that choose a currency, the portal and
       // contractor routes that store a contractor's choice (a code, never an amount), and wiring.
-      !/^apps\/api\/src\/(fx|settings-routes|portal-routes|contractor-routes|reporting-routes|account-routes|org-routes|app|server|test-support)\.ts$/.test(
+      !/^apps\/api\/src\/(fx|settings-routes|portal-routes|contractor-routes|reporting-routes|account-routes|org-routes|app|server|vercel|test-support)\.ts$/.test(
         rel(f),
       ),
   ),
@@ -92,12 +92,13 @@ describe("display-only currencies", () => {
       .filter((f) => /from\s+["'][^"']*\/fx(\.js|\.tsx?)?["']/.test(readFileSync(f, "utf8")))
       .map(rel)
       .sort();
-    // The API's rate client is wired in app/server and read by the settings routes; the web's
+    // The API's rate client is wired in app/server/vercel (the function entry) and read by the settings routes; the web's
     // estimate components are used by display screens. Nothing else imports a module named fx.
     expect(users).toEqual(
       [
         "apps/api/src/app.ts",
         "apps/api/src/server.ts",
+        "apps/api/src/vercel.ts",
         "apps/web/src/app-ui/shell.tsx",
         "apps/web/src/screens/contractor.tsx",
         "apps/web/src/screens/contractors.tsx",

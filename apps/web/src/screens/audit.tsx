@@ -7,6 +7,7 @@ import type { auditResponse } from "@veylo/contract";
 import type { z } from "zod";
 import { ApiError } from "../api/client";
 import { ErrorNote, NeedsOrg, PageHeader } from "../app-ui/shell";
+import { wordsFromCode } from "../app-ui/plain";
 import { useSession } from "../app-ui/session";
 import { downloadBytes } from "../reports/download";
 import { EmptyState, Button, Field, Skeleton } from "../ui/basic";
@@ -29,8 +30,7 @@ const GROUPS: readonly (readonly [string, string])[] = [
 /** "pay_run.approve" becomes "Pay run: approve", for people. */
 export function plainAction(action: string): string {
   const [area = "", ...rest] = action.split(".");
-  const a = area.replaceAll("_", " ");
-  return `${a.charAt(0).toUpperCase()}${a.slice(1)}: ${rest.join(" ").replaceAll("_", " ")}`;
+  return `${wordsFromCode(area)}: ${wordsFromCode(rest.join(" ")).toLowerCase()}`;
 }
 
 const csvCell = (v: string) => (/^[=+\-@]/.test(v) ? `'${v}` : v);

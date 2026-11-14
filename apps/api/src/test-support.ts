@@ -364,6 +364,8 @@ export async function createHarness() {
     const app = await buildUnchecked(overrides);
     app.addHook("onSend", async (request, reply, payload) => {
       if (reply.statusCode < 200 || reply.statusCode >= 300) return payload;
+      // The internal cron routes (W7) are for Vercel Cron, not the web client: no contract entry.
+      if (request.url.startsWith("/internal/")) return payload;
       const key = `${request.method} ${request.routeOptions.url}` as RouteKey;
       const schema = ROUTES[key];
       if (schema === undefined) throw new Error(`contract: no schema for ${key}`);

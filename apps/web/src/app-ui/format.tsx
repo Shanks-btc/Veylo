@@ -1,6 +1,7 @@
 // Display helpers for the app screens. Amounts stay decimal strings (no floating point).
 import { addMoney, formatAmount, parseAmount, parseUnits, USDC, PAYOUT_ROUTES } from "@veylo/core";
 import { Tag, type TagTone } from "../ui/basic";
+import { attemptStatus } from "./plain";
 
 export const unitsToDecimal = (units: string): string => formatAmount(parseUnits(units, USDC));
 
@@ -49,10 +50,10 @@ const ATTEMPT_TONES: Record<string, TagTone> = {
   EXPIRED: "error",
 };
 
-/** A payout attempt's state (QUOTED, SIGNED, … EXPIRED) as a tag. */
+/** A payout attempt's state ("Quote ready", "Signed", … "Quote expired") as a tag, in plain words. */
 export function StateTag({ status }: { status: string | undefined }) {
   const s = status ?? "PLANNED";
-  return <Tag tone={ATTEMPT_TONES[s] ?? "neutral"}>{s}</Tag>;
+  return <Tag tone={ATTEMPT_TONES[s] ?? "neutral"}>{attemptStatus(s)}</Tag>;
 }
 
 const RUN_TONES: Record<string, TagTone> = {

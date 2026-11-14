@@ -244,8 +244,8 @@ function SignUpCard() {
       <div className="stack">
         <h1>Create your account</h1>
         <p className="muted">
-          Next you will make your wallet and pay your first contractor. Your email is for signing in
-          and notices only.
+          Next you&apos;ll create your wallet and pay your first contractor. Your email is only for
+          signing in and notices.
         </p>
       </div>
       <form className="form" onSubmit={onSubmit} noValidate>
@@ -347,7 +347,7 @@ export const VerifyEmailScreen = () => (
 );
 
 function ForgotCard() {
-  const { api } = useSession();
+  const { api, features } = useSession();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string>();
@@ -378,7 +378,12 @@ function ForgotCard() {
       <p className="draft-note" role="note">
         {WALLET_NOT_RESTORED}
       </p>
-      {sent ? (
+      {!features.emailDelivery ? (
+        <p className="notice" role="status">
+          Email delivery is not set up yet, so a reset link can&apos;t be sent. If you also signed
+          in with a wallet, use that instead.
+        </p>
+      ) : sent ? (
         <p role="status">
           If that address has an account, a reset link is on its way. Check your inbox and spam
           folder.

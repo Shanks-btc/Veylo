@@ -205,6 +205,7 @@ export async function reportingRoutes(app: FastifyInstance, deps: Deps, guards: 
   app.get("/orgs/:orgId/ledger", async (request) => {
     const { orgId } = parse(orgParams, request.params);
     await guards.requireRole(request, orgId, READERS);
+    await deps.refresh?.(orgId);
     const q = parse(ledgerQuery, request.query);
     const after = decodeCursor(q.cursor);
     const filter = {
@@ -259,6 +260,7 @@ export async function reportingRoutes(app: FastifyInstance, deps: Deps, guards: 
   app.get("/orgs/:orgId/pay-runs/:payRunId/items/:itemId/payslip", async (request) => {
     const { orgId, payRunId, itemId } = parse(payslipParams, request.params);
     await guards.requireRole(request, orgId, READERS);
+    await deps.refresh?.(orgId);
     const rows = (await ledgerAttempts(deps.db, orgId)).filter(
       (r) => r.payRunId === payRunId && r.lineItemId === itemId,
     );

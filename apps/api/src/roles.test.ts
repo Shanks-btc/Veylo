@@ -19,6 +19,7 @@ type Rule = Role[] | "public" | "session";
 export const ROLE_MATRIX: Record<RouteKey, Rule> = {
   "GET /health": "public",
   "GET /ready": "public",
+  "GET /features": "public",
   "POST /auth/challenge": "public",
   "POST /auth/verify": "public",
   "POST /auth/logout": "session",

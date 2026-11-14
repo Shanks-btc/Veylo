@@ -106,9 +106,9 @@ describe("reduced motion", () => {
   it("script animations check prefersReducedMotion first", () => {
     for (const f of [
       "src/landing/globe.tsx",
-      "src/landing/story.tsx",
+      "src/landing/card-fx.tsx",
+      "src/landing/nav.tsx",
       "src/landing/reveal-controller.tsx",
-      "src/ui/card.tsx",
     ]) {
       expect(readFileSync(join(web, f), "utf8"), f).toMatch(/prefersReducedMotion\(\)/);
     }
@@ -197,5 +197,21 @@ describe("responsive rules (W6)", () => {
     expect(all).toMatch(/\.sticky-actions[\s\S]*position: sticky/);
     expect(all).toMatch(/dialog[\s\S]*100dvh|\.sheet[\s\S]*100dvh|max-height: 100dvh/);
     expect(all).toMatch(/\.table[\s\S]*display: block/);
+  });
+});
+
+describe("no demo banner", () => {
+  // The founder removed the "Demo data" banner from the whole app: it must not come back in any file
+  // that is built (a comment or a doc may still say "demo data").
+  it("neither its text, its component nor its style exists in the app's source", () => {
+    const hits = product()
+      .filter((p) => /\.(tsx?|css|mjs)$/.test(p) && rel(p) !== "scripts/verify-build.mjs")
+      .filter((p) =>
+        /Made-up people and amounts|Nothing is saved, signed or sent, and|demo-banner|DemoBanner|>Demo data</.test(
+          readFileSync(p, "utf8"),
+        ),
+      )
+      .map(rel);
+    expect(hits).toEqual([]);
   });
 });

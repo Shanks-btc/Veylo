@@ -4,7 +4,6 @@ import { randomBytes } from "node:crypto";
 import { createIntentsReader, createNearRpc } from "@veylo/chains";
 import { loadSettlementWorkerConfig } from "@veylo/config";
 import { schema } from "@veylo/db";
-import { createOneClickDryClient, createOneClickTreasuryClient } from "@veylo/intents";
 import { createSecretBox } from "@veylo/secrets";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -12,6 +11,7 @@ import { PgBoss } from "pg-boss";
 import pino from "pino";
 import { installShutdown } from "./lifecycle.js";
 import { loggerOptions } from "./logging.js";
+import { createOneClickClients } from "./oneclick-clients.js";
 import { createScheduler } from "./scheduler.js";
 import { createSettlement } from "./settlement.js";
 import { migrationGuard } from "./startup-guard.js";
@@ -24,11 +24,11 @@ pool.on("error", (err) => log.error({ err }, "database pool error"));
 const settlement = createSettlement({
   db: drizzle(pool, { schema }),
   clock: () => new Date(),
-  oneclickTreasury: createOneClickTreasuryClient({
-    apiKey: config.ONECLICK_PARTNER_KEY,
-    fetch: globalThis.fetch,
+  oneclickTreasury: createOneClickClients({
+    partnerKey: config.ONECLICK_PARTNER_KEY,
     quotePublicKey: config.ONECLICK_QUOTE_PUBLIC_KEY,
-  }),
+    fetch: globalThis.fetch,
+  }).oneclickTreasury,
   intents: createIntentsReader({ url: config.NEAR_RPC_URL, fetch: globalThis.fetch }),
   rpc: createNearRpc({ url: config.NEAR_RPC_URL, fetch: globalThis.fetch }),
   secrets: createSecretBox({
@@ -37,7 +37,6 @@ const settlement = createSettlement({
   }),
   config: {} as never,
 });
-void createOneClickDryClient;
 
 // The scheduled-payroll job gets a database and a clock only (D1): it can't quote, sign or submit.
 const scheduler = createScheduler({ db: drizzle(pool, { schema }), clock: () => new Date() });

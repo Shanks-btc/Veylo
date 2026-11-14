@@ -8,6 +8,7 @@ import { earliestSigningBound, flagText, signPayRun } from "../signing/pay-run";
 import { ErrorNote, NeedsOrg, PageHeader } from "../app-ui/shell";
 import { useApi, useQueryParam, useSession, webConfig, useOrg } from "../app-ui/session";
 import { RouteTag, RunTag, StateTag, formatDate } from "../app-ui/format";
+import { attemptStatus, reviewFlag } from "../app-ui/plain";
 import { AmountText, ButtonLink, EmptyState, Skeleton, Tag } from "../ui/basic";
 import { Table } from "../ui/data";
 import { Card, useToast } from "../ui/interactive";
@@ -38,12 +39,11 @@ function useContractors(orgId: string) {
 export function heldReason(item: Item): string | undefined {
   if (item.blocked) {
     const flags = item.flags.filter((f) => f.blocking);
-    return flags.length > 0
-      ? flags.map((f) => f.detail ?? f.code.replaceAll("_", " ")).join("; ")
-      : "Blocked by a check";
+    return flags.length > 0 ? flags.map((f) => reviewFlag(f)).join("; ") : "Blocked by a check";
   }
   if (!item.attempt) return "No quote yet";
-  if (item.attempt.status !== "QUOTED") return `Payout is ${item.attempt.status}`;
+  if (item.attempt.status !== "QUOTED")
+    return `Payout status: ${attemptStatus(item.attempt.status)}`;
   return undefined;
 }
 
@@ -175,7 +175,7 @@ function ItemsTable({
 }
 
 function Review({ orgId, payRunId }: { orgId: string; payRunId: string }) {
-  const { api, connectWallet, gateDeps, now: clock } = useSession();
+  const { api, connectWallet, gateDeps, now: clock, features } = useSession();
   const isOwner = useOrg()?.role === "owner";
   const toast = useToast();
   const contractors = useContractors(orgId);
@@ -310,6 +310,12 @@ function Review({ orgId, payRunId }: { orgId: string; payRunId: string }) {
         Each payout is checked in this browser before your treasury wallet signs.
       </PageHeader>
       {error ? <ErrorNote error={error} /> : null}
+      {!features.liveQuotes && !run.data.simulated ? (
+        <p className="notice" role="status">
+          Live quotes are not connected yet, so payouts can&apos;t be quoted or sent from this
+          deployment. Nothing was sent.
+        </p>
+      ) : null}
       <div className="review">
         <div className="stack">
           <ItemsTable run={run.data} contractors={contractors} caption="Payouts in this run" />

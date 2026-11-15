@@ -77,6 +77,30 @@ Veylo pays your contractors in USDC from one treasury on NEAR. Each person is pa
 
 **What "private" means.** Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it. Private isn't anonymous: the contractor, Veylo and the settlement service can still see the details. The **Privacy** screen shows the difference live from NEAR mainnet, and the **Verify** page re-checks a direct payout from NEAR on every load.
 
+**Private and direct payouts**
+
+```mermaid
+flowchart TB
+  subgraph Direct["Direct payout"]
+    direction LR
+    dt["Treasury"] -->|"public"| dn["NEAR Intents, public balance: intents.near"]
+    dn -->|"public"| dr["Recipient"]
+    dr --> dres["Anyone can follow it from treasury to recipient"]
+  end
+  subgraph Private["Private payout"]
+    direction LR
+    pt["Treasury"] -->|"confidential"| pc["Confidential balance: intents.far"]
+    pc -->|"confidential"| pr["Recipient"]
+    pr --> pres["No public transaction names the treasury"]
+  end
+  classDef actor fill:#E4E7FF,stroke:#5B6CFF,color:#0A0E1F
+  classDef amber fill:#FFF0D4,stroke:#F5B94A,color:#7A5200
+  class dt,dn,dr,dres actor
+  class pt,pc,pr,pres amber
+```
+
+_A direct payout can be followed from treasury to recipient. Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it._
+
 **Money and currencies.**
 
 - Salaries are set in US dollars, and the treasury is held in USDC.
@@ -86,6 +110,59 @@ Veylo pays your contractors in USDC from one treasury on NEAR. Each person is pa
 **Compared with NEAR Business.** NEAR Business describes itself as a cross-chain multisig solution for managing confidential digital assets, with member roles and payment requests that members propose and approve ([docs](https://docs.business.near.com/), read 2026-11-12). The pages we read do not mention payroll, pay runs or payslips. Veylo is a payroll layer for a confidential treasury: contractors and pay runs, payslips and statements, a CSV for the accountant, and an owner-signed payee list. NEAR Business is a multisig where several members approve; Veylo has one owner wallet that signs. Several approvers are on the roadmap.
 
 ## How it works
+
+**System architecture**
+
+```mermaid
+flowchart TB
+  subgraph Browser["Browser"]
+    app["Web app"]
+    gates["Gates A, B, B2, C and F"]
+    result["Check results: Approve unlocks or stays locked"]
+  end
+  subgraph Bridge["Wallet bridge origin"]
+    emb["Embedded wallet: the key stays here"]
+    exec["Pinned wallet executors"]
+  end
+  subgraph Server["Veylo API"]
+    api["Accounts, payee records, pay runs, quotes, ledger"]
+    nokey["Holds no private key"]
+  end
+  subgraph Cron["Cron routes"]
+    settle["settlement"]
+    prepare["prepare-drafts"]
+  end
+  db[("Database: Neon Postgres")]
+  oc["1Click API"]
+  subgraph Chain["NEAR"]
+    near["intents.near"]
+    far["intents.far"]
+    rpc["NEAR RPC"]
+  end
+  app <-->|"sign request, signature"| emb
+  app <-->|"sign request, signature"| exec
+  app -->|"signed payee list, signed intent"| api
+  api -->|"quote, intent message"| app
+  app --> gates
+  gates --> result
+  gates -->|"key and balance reads"| rpc
+  api -->|"records"| db
+  api -->|"quote request, signed intent"| oc
+  oc -->|"signed quote, intent message"| api
+  oc -->|"settles"| near
+  oc -->|"settles"| far
+  settle -->|"status poll"| oc
+  settle -->|"ledger updates"| db
+  prepare -->|"draft pay runs"| db
+  classDef actor fill:#E4E7FF,stroke:#5B6CFF,color:#0A0E1F
+  classDef keys fill:#0A0E1F,stroke:#0A0E1F,color:#FFFFFF
+  classDef bad fill:#FFFFFF,stroke:#C2410C,stroke-width:2px,color:#0A0E1F
+  class app,gates,result,exec,api,settle,prepare,db,oc,near,far,rpc actor
+  class emb keys
+  class nokey bad
+```
+
+_The browser and the wallet hold the keys and run the checks; the API stores records and relays quotes and signed messages, and holds no private key._
 
 A month in Veylo, from sign-up to payslips:
 
@@ -98,6 +175,50 @@ A month in Veylo, from sign-up to payslips:
 7. **Approve in your wallet.** Your browser runs its checks on every payout. A new payee, a new address or an unusual amount needs you to tick "I've checked this". If every check passes, you approve each payout in your wallet, one approval per payout.
 8. **Payouts settle,** usually within a minute or two.
 9. **Payslips and verification.** Every settled payout has a payslip (PDF), appears in the ledger and the CSV, and has a verify page.
+
+**A month in Veylo**
+
+```mermaid
+flowchart LR
+  m1["Sign up"] --> m2["Get a wallet"] --> m3["Fund in USDC on NEAR"] --> m4["Add team"] --> m5["Sign payee list"] --> m6["Review pay run"] --> m7["Approve in wallet"] --> m8["Settle"] --> m9["Payslips and verify"]
+  classDef actor fill:#E4E7FF,stroke:#5B6CFF,color:#0A0E1F
+  classDef keys fill:#0A0E1F,stroke:#0A0E1F,color:#FFFFFF
+  classDef ok fill:#DDF4EA,stroke:#1E9E6A,color:#0A0E1F
+  class m1,m2,m3,m4,m6,m8 actor
+  class m5,m7 keys
+  class m9 ok
+```
+
+_The dark steps need your wallet's signature: the payee list and each payout._
+
+**Funding the treasury**
+
+```mermaid
+flowchart TB
+  start["Fund screen"] --> pick{"Choose a source"}
+  pick --> usdc["USDC on NEAR"]
+  pick --> conv["Convert from another network"]
+  pick --> soon["NEAR, or USDT on NEAR: coming soon"]
+  usdc --> ask["Veylo asks 1Click for a deposit address"]
+  conv --> rate["Rate, fee and USDC you receive shown first"]
+  rate --> ask
+  ask --> gf{"Gate F: signed by 1Click, pays your treasury, refund to you, amount right"}
+  gf -->|"pass"| addr["Deposit address and QR code shown"]
+  gf -->|"fail"| stop["No address shown, reason in plain words"]
+  addr --> send["You send the funds"]
+  send --> wait["Waiting for your deposit"]
+  wait --> done["Done: the funds are in your treasury"]
+  classDef actor fill:#E4E7FF,stroke:#5B6CFF,color:#0A0E1F
+  classDef ok fill:#DDF4EA,stroke:#1E9E6A,color:#0A0E1F
+  classDef bad fill:#FFFFFF,stroke:#C2410C,stroke-width:2px,color:#0A0E1F
+  classDef later fill:#FFFFFF,stroke:#8A90A8,stroke-dasharray:4 3,color:#5D6480
+  class start,pick,usdc,conv,ask,rate,gf,addr,send,wait actor
+  class done ok
+  class stop bad
+  class soon later
+```
+
+_USDC on NEAR needs no conversion, USDC or USDT from another network is converted by NEAR Intents, and NEAR or USDT on NEAR are coming soon._
 
 **Roles.** The owner does everything and signs with the treasury wallet. A preparer creates and edits drafts and contractors, and can't approve addresses or sign. An accountant reads the ledger, payslips, statements, CSV and audit log, and sees a contractor's name and route, nothing else personal.
 
@@ -135,6 +256,36 @@ On Vercel the web app, the wallet bridge and the API are three projects: `veylop
 | Contractor portal          | A contractor sees their own payslips and private balance and sets their payout address. Cash-out from the portal waits for its live test.                                          | `apps/web/src/screens/portal.tsx`, `apps/api/src/portal-routes.ts`                                  |
 | Verify page                | Re-reads a direct payout's NEAR transactions and checks the amount and the recipient. For a private payout it shows the recorded status.                                           | `apps/web/src/screens/verify.tsx`, `apps/web/src/proof/verify.ts`                                   |
 
+**How the gates decide**
+
+```mermaid
+flowchart TB
+  qin["Quote and intent message"] --> ga{"Gate A: quote signature matches the pinned key?"}
+  ga -->|"yes"| gt{"Time left: quote deadline not passed?"}
+  gt -->|"yes"| gb{"Gate B: payee on your signed list, not expired, version not rolled back?"}
+  gb -->|"yes"| gb2{"Gate B2: signing key registered on the verifier?"}
+  gb2 -->|"yes"| gc{"Gate C: pays the deposit address, amount over the payout by at most the larger of 1 USDC and 1%?"}
+  gc -->|"yes"| unlock["Approve unlocks"]
+  ga -->|"no"| lock["Approve stays locked, with the reason in plain words"]
+  gt -->|"no"| lock
+  gb -->|"no"| lock
+  gb2 -->|"no"| lock
+  gc -->|"no"| lock
+  subgraph Funding["Funding quote"]
+    fq["Funding quote"] --> gf{"Gate F: signed by 1Click, pays your treasury, refund to you, amount right?"}
+    gf -->|"yes"| addr["Deposit address is shown"]
+    gf -->|"no"| nofund["No address shown, with the reason in plain words"]
+  end
+  classDef actor fill:#E4E7FF,stroke:#5B6CFF,color:#0A0E1F
+  classDef ok fill:#DDF4EA,stroke:#1E9E6A,color:#0A0E1F
+  classDef bad fill:#FFFFFF,stroke:#C2410C,stroke-width:2px,color:#0A0E1F
+  class qin,ga,gt,gb,gb2,gc,fq,gf actor
+  class unlock,addr ok
+  class lock,nofund bad
+```
+
+_A quote and its intent message must pass every check in order, and any failure keeps Approve locked; Gate F does the same for a funding quote._
+
 ## The pay run, step by step
 
 | Step | Name    | What happens                                                                                                                                                                           | Who signs / which NEAR call                                                                                             |
@@ -147,6 +298,55 @@ On Vercel the web app, the wallet bridge and the API are three projects: `veylop
 | 6    | Submit  | Your browser returns the signatures and the server submits each signed intent to 1Click (`/v0/submit-intent`).                                                                         | No new signature. The server holds a signed message it cannot change.                                                   |
 | 7    | Settle  | NEAR Intents settles each payout, in parallel. Veylo polls `/v0/status` until each one is final.                                                                                       | Nobody. NEAR Intents' verifier (`intents.near`, or `intents.far` for a confidential payout) executes the signed intent. |
 | 8    | Record  | After a short delay the payout is reconciled. It gets a ledger line, a CSV row, a payslip and a verify page.                                                                           | Nobody.                                                                                                                 |
+
+**The pay run as a sequence**
+
+```mermaid
+sequenceDiagram
+  participant Owner
+  participant Browser
+  participant Wallet
+  participant API as Veylo API
+  participant OC as 1Click
+  participant NI as NEAR Intents
+  Note over Owner,API: 1 Draft and 2 Review
+  Owner->>Browser: Open the draft pay run
+  Browser->>API: Load the draft
+  API-->>Browser: Amounts, routes and fee previews
+  Note over Owner,API: 3 Quote
+  Owner->>Browser: Ask for quotes
+  Browser->>API: Quote the payouts
+  API->>OC: /v0/quote
+  OC-->>API: Signed quote with a deadline
+  Note over Owner,API: 4 Check
+  API->>OC: /v0/generate-intent
+  OC-->>API: Intent message
+  API-->>Browser: Quote and intent message
+  Browser->>NI: Key reads over NEAR RPC
+  NI-->>Browser: Keys and verifier state
+  alt A gate fails
+    Browser-->>Owner: Approve stays locked, with the reason in plain words
+    Note over Owner,Browser: Nothing is signed or submitted. The flow stops here.
+  else Gates A, B, B2, C and time left all pass
+    Note over Owner,API: 5 Approve
+    Owner->>Browser: Approve
+    Browser->>Wallet: signMessage (NEP-413)
+    Wallet-->>Browser: Signature
+    Browser->>API: Signed intent
+    Note over Owner,API: 6 Submit
+    API->>OC: /v0/submit-intent, message unchanged
+    Note over Owner,API: 7 Settle
+    OC->>NI: Settle the intent
+    loop Until the payout is final
+      API->>OC: /v0/status
+      OC-->>API: Status
+    end
+    Note over Owner,API: 8 Record
+    API-->>Browser: Ledger line, payslip and verify page
+  end
+```
+
+_A failed gate stops the flow before anything is signed, and a payout is submitted after every gate passes and you approve it in your wallet._
 
 A payout moves through these statuses:
 
@@ -202,6 +402,33 @@ Export it from **Ledger → Export CSV** for any date range. It lists live payou
 | Keeps the 1Click partner key and session tokens, encrypted, on the server tier that needs them. | Log signed payloads. Request logs carry no headers, bodies or query strings, and signatures and tokens are redacted. |
 | Reads currency rates for display-only estimates.                                                | Use a currency estimate to work out, sign or send a payment.                                                         |
 | Writes each email to an outbox table (nothing sends it yet).                                    | Let an email account unlock a wallet. A password reset never restores a wallet.                                      |
+
+**The trust boundary**
+
+```mermaid
+flowchart LR
+  subgraph You["You: keys and approvals"]
+    wal["Wallet: holds the key and signs"]
+    brw["Browser: checks every payout"]
+  end
+  subgraph Srv["Veylo's server: records and relay"]
+    rec["Stores team, salaries, schedules and records"]
+    rel["Relays signed messages it cannot change"]
+    never["Never sees a key, signs or moves funds"]
+  end
+  wal <-->|"sign request, signature"| brw
+  brw -->|"signed payee list, signed intents"| rel
+  rel -->|"quotes, intent messages"| brw
+  rel --> rec
+  classDef actor fill:#E4E7FF,stroke:#5B6CFF,color:#0A0E1F
+  classDef keys fill:#0A0E1F,stroke:#0A0E1F,color:#FFFFFF
+  classDef bad fill:#FFFFFF,stroke:#C2410C,stroke-width:2px,color:#0A0E1F
+  class wal keys
+  class brw,rec,rel actor
+  class never bad
+```
+
+_Keys and approvals stay with you; the server stores records and relays messages it cannot change._
 
 ## What NEAR provides
 
@@ -261,7 +488,7 @@ Whichever wallet signs, the app verifies the signature over the exact bytes, the
 
 | Check                                  | Latest result                             |
 | -------------------------------------- | ----------------------------------------- |
-| `pnpm test` (all tests)                | 2767 tests passed, 7 skipped, in 94 files |
+| `pnpm test` (all tests)                | 2822 tests passed, 7 skipped, in 94 files |
 | Tenant isolation suite                 | 238 of 238 passed                         |
 | Address validation suite               | 73 of 73 passed                           |
 | Mainnet evidence re-check (public RPC) | 31 of 31 passed                           |

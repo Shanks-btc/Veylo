@@ -141,6 +141,63 @@ describe("the README is guarded", () => {
     expect(findNotOffered(withLine(line))).toHaveLength(1);
   });
 
+  // The README's Mermaid diagrams (README diagrams): the guard reads a diagram's labels and a
+  // caption like any other line, so a banned word inside a node, a message or a caption is caught.
+  const withDiagram = (body: string, caption = "_A caption._") =>
+    asMarkdown(`${readme}\n\n**A test diagram**\n\n\`\`\`mermaid\n${body}\n\`\`\`\n\n${caption}\n`);
+
+  it("the diagrams as written are clean", () => {
+    const blocks = [...readme.matchAll(/```mermaid\n([\s\S]*?)\n```/g)].map((m) => m[1] ?? "");
+    expect(blocks.length).toBeGreaterThanOrEqual(7);
+    for (const block of blocks) {
+      expect(findClaims(asMarkdown(block))).toEqual([]);
+      expect(findNotOffered(asMarkdown(block))).toEqual([]);
+    }
+  });
+
+  it.each([
+    [
+      'flowchart label: "Earn yield on your treasury"',
+      'flowchart TB\n  x["Earn yield on your treasury"]',
+    ],
+    ['flowchart edge: "Earn 5% APY"', 'flowchart TB\n  a["A"] -->|"Earn 5% APY"| b["B"]'],
+    ['flowchart label: "A Visa card"', 'flowchart TB\n  x["A Visa card for contractors"]'],
+    ['flowchart label: "debit card"', 'flowchart TB\n  x["Spend with a debit card"]'],
+    ['flowchart label: "off-ramp"', 'flowchart TB\n  x["Cash out through the off-ramp"]'],
+    ['sequence message: "interest"', "sequenceDiagram\n  A->>B: Treasury interest, paid monthly"],
+  ])("fails when a diagram has a %s", (_name, body) => {
+    expect(findNotOffered(withDiagram(body))).toHaveLength(1);
+  });
+
+  it.each([
+    [
+      'flowchart label: "The first private payroll"',
+      'flowchart TB\n  x["The first private payroll on NEAR"]',
+    ],
+    [
+      'flowchart label: "The only way"',
+      'flowchart TB\n  x["The only way to pay a team privately"]',
+    ],
+    ['flowchart label: "A unique approach"', 'flowchart TB\n  x["A unique approach to payroll"]'],
+    [
+      'sequence note: "The only tool"',
+      "sequenceDiagram\n  Note over A,B: The only tool for payroll",
+    ],
+  ])("fails when a diagram has a %s", (_name, body) => {
+    expect(findClaims(withDiagram(body))).toHaveLength(1);
+  });
+
+  it.each([
+    ["_Veylo is the first private payroll on NEAR._", "claim"],
+    ["_The only way to pay a team privately._", "claim"],
+    ["_A unique approach to payroll._", "claim"],
+    ["_Earn yield on your balance._", "not offered"],
+    ["_A Visa card for contractors._", "not offered"],
+  ])("fails when a diagram caption says: %s", (caption, kind) => {
+    const text = withDiagram('flowchart TB\n  x["A"]', caption);
+    expect(kind === "claim" ? findClaims(text) : findNotOffered(text)).toHaveLength(1);
+  });
+
   it("still allows a first payout, and a plain 'only you' about who signs", () => {
     expect(
       findClaims(withLine("A first payout to a new address needs you to tick a box.")),

@@ -2,34 +2,12 @@
 
 <p align="center"><img src="design/images/veylo-landing%20.png" alt="Veylo landing page" width="100%"></p>
 
-**Veylo is private, borderless payroll on NEAR.** One treasury pays a global team in USDC, gasless for everyone, and payroll isn't publicly linked to the company.
+Veylo is private, borderless payroll on NEAR. It lets a company pay a global team in USDC from one treasury, without putting every salary on a public block explorer. Today, paying people in other countries is slow and expensive, and paying onchain fixes that but exposes who is paid, how much and when. Veylo keeps the speed and the low cost and removes the exposure.
 
-Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it.
+Add your team by hand or from a CSV, fund the treasury in USDC, and run a monthly pay run. Before you can approve anything, your browser checks that every quote is signed by NEAR Intents, that every recipient is on a payee list your own wallet signed, and that every amount is right. You approve each payout in your own wallet, either one of 7 NEAR wallets or a wallet Veylo creates for you at sign-up, and NEAR Intents delivers the USDC. Nobody needs a gas token, not you and not the person you pay.
 
 **Live app:** [veylopay.vercel.app](https://veylopay.vercel.app) · **Repository:** [github.com/Shanks-btc/Veylo](https://github.com/Shanks-btc/Veylo) 
 
-## Try it in 2 minutes
-
-**Live app:** https://veylopay.vercel.app is the real app: your own account, your own wallet, a real database ([docs/DEPLOY.md](docs/DEPLOY.md) section 14). To see the whole story with no wallet and no money, run the demo on your own computer: the six rows below, then the one-liner after them. They use made-up people and amounts, with a real recorded NEAR Intents quote.
-
-| #   | Do                                                                                     | See                                                                                                                                                                                                                                        |
-| --- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Run `pnpm i && pnpm dev:web`, then open http://localhost:3000.                         | The landing page: "Pay your team anywhere. Keep payroll private."                                                                                                                                                                          |
-| 2   | Click **Open app**, then **Use a wallet instead**, then **Use the demo wallet**.       | A real sign-in message is checked and signed by the demo wallet. You land on the treasury home.                                                                                                                                            |
-| 3   | Open **Pay runs**, then the 2026-11 run, then **Check before signing**.                | Five checks turn to PASS (quote signature, payee list, key, amount, time left). **Approve payouts in wallet** unlocks.                                                                                                                     |
-| 4   | Click **Redirect Kwame's payout to an attacker**.                                      | Four checks turn to FAIL (quote signature, payee list, amount, time left), in plain words ("The payee list your server sent isn't the one your treasury wallet signed"). Approve stays locked. **Undo the attack** brings the passes back. |
-| 5   | Open **Privacy**.                                                                      | The same kind of payout seen two ways, read live from NEAR mainnet: the direct one can be followed from treasury to recipient; for the private one, no public transaction names the treasury.                                              |
-| 6   | Open **Ledger**, then **Verify** on a payout, and download a payslip or statement PDF. | The verify page re-reads the payout's NEAR transactions and checks the amount and recipient. The PDF carries the same verify link.                                                                                                         |
-
-With no keys and no money, in one line:
-
-```
-pnpm i && pnpm demo
-```
-
-It runs the whole story and prints 19 numbered checks in under a minute, from funding the treasury to a refused redirected payout, a payslip and CSV, the privacy proof, roles, CSV import, the contractor portal and the Veylo wallet. It exits non-zero if any check fails.
-
-On the live app, funding works, but paying people needs the 1Click partner key, which isn't set yet: live payout quotes say "Live quotes are not connected yet" and nothing is sent. No email is sent yet either, and the screens say so.
 
 ## Contents
 
@@ -568,31 +546,7 @@ verification/     Mainnet test scripts, kept apart and never imported by the pro
 
 Also at the top level: [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [VERIFICATION.md](VERIFICATION.md), [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md) and [docs/PUBLIC-READINESS.md](docs/PUBLIC-READINESS.md).
 
-## Roadmap
-
-After the hackathon:
-
-- **Several approvers for a pay run.** The design is in [docs/ECOSYSTEM.md](docs/ECOSYSTEM.md).
-- **Other chains.** The code for Base, Arbitrum and Solana payouts exists and is switched off.
-- **Bank cash-out in local currency through licensed partners (after the hackathon).** Not built.
-- **The remaining mainnet tests** in [VERIFICATION.md](VERIFICATION.md), so the "coming soon" items can go live.
-
-## Built at NEAR HACKATHON
-
-Built at NEAR HACKATHON, for the Real-World Money (`realworld`) and Privacy & Private AI (`privacy`) tracks. All code in this repository was written during the hackathon window (from the 2026-10-19 announcement), with no pre-existing project (Q-001 and Q-005).
-
-**AI disclosure.** Claude Code (Anthropic) wrote and tested the code with the founder.
-
-**Libraries and services.**
-
-| Area               | What                                                                                                                                                                                                                                                                   |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Language and tools | TypeScript 5.9.3, Node 24, pnpm 11, Vitest 4.1.12, Prettier 3.9.10, esbuild 0.28.2, tsx 4.23.15, Zod 4.6.7                                                                                                                                                             |
-| API                | Fastify 5.12.8 (cookie, cors, helmet and rate-limit plugins), Drizzle ORM 0.45.4, PostgreSQL (`pg` 8.23.1), pg-boss 12.38.1, pino 10.4.0                                                                                                                               |
-| Web                | Next.js 16.4.3 (static export), React 19.3.1, three.js 0.186.1, Phosphor Icons 2.1.10, Fontsource (Inter Tight, IBM Plex Mono, Instrument Serif) 5.3.0, sharp 0.35.5                                                                                                   |
-| NEAR and crypto    | `@hot-labs/near-connect` 0.12.0, near-api-js 7.4.0 and `@defuse-protocol/intents-sdk` 0.95.0 (in the `verification/` test scripts only), `@noble/curves`, `@noble/hashes`, `@noble/ciphers` 2.4.0, `@scure/base` 2.4.0, `@scure/bip39` 2.4.0, `qrcode-generator` 2.0.4 |
-| Checks             | Playwright 1.64.1 (Chromium and WebKit), axe-core 4.14.0, Lighthouse 13.5.0                                                                                                                                                                                            |
-| Services           | NEAR Intents (1Click API), NEAR RPC (fastnear), Vercel, Neon                                                                                                                                                                                                           |
+                                                                                                                                                                             |
 
 ## License
 

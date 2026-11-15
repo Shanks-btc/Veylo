@@ -6,7 +6,7 @@
 
 Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it.
 
-**Live app:** [veylopay.vercel.app](https://veylopay.vercel.app) · **Repository:** [github.com/Shanks-btc/Veylo](https://github.com/Shanks-btc/Veylo) · **Demo video:** coming soon
+**Live app:** [veylopay.vercel.app](https://veylopay.vercel.app) · **Repository:** [github.com/Shanks-btc/Veylo](https://github.com/Shanks-btc/Veylo) 
 
 ## Try it in 2 minutes
 

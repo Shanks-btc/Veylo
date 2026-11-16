@@ -466,7 +466,7 @@ Whichever wallet signs, the app verifies the signature over the exact bytes, the
 
 | Check                                  | Latest result                             |
 | -------------------------------------- | ----------------------------------------- |
-| `pnpm test` (all tests)                | 2822 tests passed, 7 skipped, in 94 files |
+| `pnpm test` (all tests)                | 2824 tests passed, 7 skipped, in 94 files |
 | Tenant isolation suite                 | 238 of 238 passed                         |
 | Address validation suite               | 73 of 73 passed                           |
 | Mainnet evidence re-check (public RPC) | 31 of 31 passed                           |
@@ -481,15 +481,15 @@ Whichever wallet signs, the app verifies the signature over the exact bytes, the
 pnpm install --frozen-lockfile
 ```
 
-| Command                                | What it does                                                                                                                    |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev:web`                         | The app with demo data at http://localhost:3000. Nothing is saved, signed or sent.                                              |
-| `pnpm dev:wallet`                      | The app with a real wallet and a local database. The steps are in [docs/DEPLOY.md](docs/DEPLOY.md) section 13.                  |
-| `pnpm demo`                            | The whole story with no keys, 19 numbered checks.                                                                               |
-| `pnpm build`                           | Builds the API. The web app builds with `pnpm --filter @veylo/web build`.                                                       |
-| `pnpm verify`                          | Typecheck, every test, and the mainnet evidence re-check.                                                                       |
-| `pnpm --filter @veylo/web check:pages` | The page crawler, 17 screen sizes and axe. Needs Chrome. `check:embedded`, `check:browser` and `check:lighthouse` are siblings. |
-| `pnpm wallets:refresh`                 | Prints what changed in the wallet manifest. Writes nothing without the founder's approval.                                      |
+| Command                                | What it does                                                                                                                                                                                                                                                                              |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev:web`                         | The app with demo data at http://localhost:3000. Nothing is saved, signed or sent.                                                                                                                                                                                                        |
+| `pnpm dev:wallet`                      | The app with a real wallet and a local database. The steps are in [docs/DEPLOY.md](docs/DEPLOY.md) section 13.                                                                                                                                                                            |
+| `pnpm demo`                            | The whole story with no keys, 19 numbered checks.                                                                                                                                                                                                                                         |
+| `pnpm build`                           | Builds the API. `pnpm --filter @veylo/web build:demo` builds the web app with demo data and needs no settings. A real web build stops unless the public `NEXT_PUBLIC_*` settings in [docs/DEPLOY.md](docs/DEPLOY.md) section 14 are set; `pnpm verify` builds it with placeholder values. |
+| `pnpm verify`                          | Typecheck, every test, and the mainnet evidence re-check.                                                                                                                                                                                                                                 |
+| `pnpm --filter @veylo/web check:pages` | The page crawler, 17 screen sizes and axe. Needs Chrome. `check:embedded`, `check:browser` and `check:lighthouse` are siblings.                                                                                                                                                           |
+| `pnpm wallets:refresh`                 | Prints what changed in the wallet manifest. Writes nothing without the founder's approval.                                                                                                                                                                                                |
 
 ## Environment variables
 
@@ -539,7 +539,7 @@ packages/
   config/         Environment schema
   secrets/        Envelope encryption
 tools/verify/     pnpm verify, the demo, the evidence re-check, the live check
-docs/             DEPLOY, EVIDENCE, FUNDING, WALLETS, PUBLIC-READINESS, ECOSYSTEM, SUBMISSION
+docs/             DEPLOY, EVIDENCE, FUNDING, WALLETS, PUBLIC-READINESS, ECOSYSTEM
 design/           Images, screenshots and the reference landing page
 verification/     Mainnet test scripts, kept apart and never imported by the product
 ```

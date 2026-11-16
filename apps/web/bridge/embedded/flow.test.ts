@@ -4,12 +4,13 @@
 // real cost is checked in vault.test.ts.
 import { createHmac, randomBytes } from "node:crypto";
 import { base64, base64url } from "@scure/base";
+import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { verifyNep413 } from "@veylo/intents";
 import { describe, expect, it, vi } from "vitest";
 import { createBridgeHandler } from "../handler";
 import { createBridgeWallet, type BridgeTransport } from "../../src/wallet/bridge-client";
 import { BRIDGE_PROTOCOL } from "../../src/wallet/bridge-protocol";
-import { keyFromPhrase } from "./derive";
+import { isValidPhrase, keyFromPhrase } from "./derive";
 import {
   PASSWORD_CACHE_MS,
   PhraseNotConfirmed,
@@ -141,6 +142,33 @@ function make(
   return { wallet, store, ...p, ...pk };
 }
 
+/** A valid 12-word recovery phrase that contains the given words (the last word is found by checksum). */
+function phraseContaining(...words: string[]): string {
+  const head = [...words, ...Array.from({ length: 11 - words.length }, () => "abandon")];
+  for (const last of wordlist) {
+    const phrase = [...head, last].join(" ");
+    if (isValidPhrase(phrase)) return phrase;
+  }
+  throw new Error("no valid phrase contains those words");
+}
+
+/** Every string stored as a value in a record. Field names are not values. */
+function stringValues(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(stringValues);
+  if (value !== null && typeof value === "object")
+    return Object.values(value).flatMap(stringValues);
+  return [];
+}
+
+/** What a stored record gives away: a recovery word stored as a value, or the whole phrase inside one. */
+function leakedFrom(stored: unknown, phrase: string): string[] {
+  const values = stringValues(stored);
+  const leaked = phrase.split(" ").filter((word) => values.includes(word));
+  if (values.some((value) => value.includes(phrase))) leaked.push(phrase);
+  return leaked;
+}
+
 const SIGN = {
   message: "Pay Ada 100 USDC",
   recipient: "veylo.test",
@@ -180,9 +208,35 @@ describe("creating a wallet", () => {
   it("stores only ciphertext", async () => {
     const t = make();
     await t.wallet.connect("create");
-    const stored = JSON.stringify(await t.store.list());
-    for (const word of t.phrase().split(" ")) expect(stored).not.toContain(`"${word}"`);
-    expect(stored).not.toContain("a wallet password only i know");
+    const blobs = await t.store.list();
+    expect(leakedFrom(blobs, t.phrase())).toEqual([]);
+    expect(JSON.stringify(blobs)).not.toContain("a wallet password only i know");
+  });
+
+  // "salt" and "kind" are on the recovery word list and are also names of fields in the stored record
+  // (the Argon2id salt, the kind of wrap). A random phrase holds one of them about once in 85 runs, and
+  // the check used to read the field name as a leaked word. Only a word stored as a VALUE is a leak.
+  it("stores only ciphertext when a recovery word is also the name of a stored field", async () => {
+    const phrase = phraseContaining("salt", "kind");
+    const t = make({ phraseToRestore: phrase });
+    await t.wallet.connect("restore");
+    const blobs = await t.store.list();
+    const text = JSON.stringify(blobs);
+    expect(text).toContain('"salt":');
+    expect(text).toContain('"kind":');
+    expect(leakedFrom(blobs, phrase)).toEqual([]);
+    expect(text).not.toContain("a wallet password only i know");
+  });
+
+  it("the leak check still catches a word stored as a value, and the whole phrase", () => {
+    expect(leakedFrom([{ words: ["zoo", "wage"] }], "zoo abandon wage")).toEqual(["zoo", "wage"]);
+    expect(leakedFrom([{ kdf: { salt: "zoo" } }], "zoo abandon wage")).toEqual(["zoo"]);
+    expect(leakedFrom([{ note: "my zoo abandon wage" }], "zoo abandon wage")).toEqual([
+      "zoo abandon wage",
+    ]);
+    expect(leakedFrom([{ kdf: { salt: "AAAA" }, kind: "password" }], "salt kind abandon")).toEqual(
+      [],
+    );
   });
 
   it("falls back to a password, and says so, where the device can't do passkeys", async () => {

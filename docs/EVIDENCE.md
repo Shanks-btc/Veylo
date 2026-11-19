@@ -8,13 +8,10 @@ This file lists transactions and nothing more. It makes no claim beyond the rows
 
 Live, reconciled, successful payouts and completed treasury events recorded by Veylo itself. Simulated records are never included. This section also lists funding made through the live app, which is not a payout.
 
-### Payouts
-
-None yet.
 
 ### Funding through the live app
 
-One funding, made by the founder on 2026-11-16 through the live app (https://veylopay.vercel.app, "Send USDC on NEAR"). It was recorded by hand from the founder's report after the transaction was read from public RPC; `pnpm evidence:generate` does not produce it.
+One funding, made by the  through the live app (https://veylopay.vercel.app, "Send USDC on NEAR"). It was recorded by hand from the founder's report after the transaction was read from public RPC; `pnpm evidence:generate` does not produce it.
 
 | # | Date (UTC) | Event | Chain | Transaction | Look-up account / recipient | Amount | Explorer | Source |
 |---|---|---|---|---|---|---|---|---|

@@ -4,10 +4,34 @@
 
 Veylo is private, borderless payroll on NEAR. It lets a company pay a global team in USDC from one treasury, without putting every salary on a public block explorer. Today, paying people in other countries is slow and expensive, and paying onchain fixes that but exposes who is paid, how much and when. Veylo keeps the speed and the low cost and removes the exposure.
 
+Private means no public source we checked links a confidential payout to the company, provided the payout address has never received a public payment from it.
+
 Add your team by hand or from a CSV, fund the treasury in USDC, and run a monthly pay run. Before you can approve anything, your browser checks that every quote is signed by NEAR Intents, that every recipient is on a payee list your own wallet signed, and that every amount is right. You approve each payout in your own wallet, either one of 7 NEAR wallets or a wallet Veylo creates for you at sign-up, and NEAR Intents delivers the USDC. Nobody needs a gas token, not you and not the person you pay.
 
-**Live app:** [veylopay.vercel.app](https://veylopay.vercel.app) · **Repository:** [github.com/Shanks-btc/Veylo](https://github.com/Shanks-btc/Veylo) 
+**Live app:** [veylopay.vercel.app](https://veylopay.vercel.app) · **Repository:** [github.com/Shanks-btc/Veylo](https://github.com/Shanks-btc/Veylo) · **Demo video:** coming soon
 
+## Try it in 2 minutes
+
+**Live app:** https://veylopay.vercel.app is the real app: your own account, your own wallet, a real database ([docs/DEPLOY.md](docs/DEPLOY.md) section 14). To see the whole story with no wallet and no money, run the demo on your own computer: the six rows below, then the one-liner after them. They use made-up people and amounts, with a real recorded NEAR Intents quote.
+
+| #   | Do                                                                                     | See                                                                                                                                                                                                                                        |
+| --- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Run `pnpm i && pnpm dev:web`, then open http://localhost:3000.                         | The landing page: "Pay your team anywhere. Keep payroll private."                                                                                                                                                                          |
+| 2   | Click **Open app**, then **Use a wallet instead**, then **Use the demo wallet**.       | A real sign-in message is checked and signed by the demo wallet. You land on the treasury home.                                                                                                                                            |
+| 3   | Open **Pay runs**, then the 2026-11 run, then **Check before signing**.                | Five checks turn to PASS (quote signature, payee list, key, amount, time left). **Approve payouts in wallet** unlocks.                                                                                                                     |
+| 4   | Click **Redirect Kwame's payout to an attacker**.                                      | Four checks turn to FAIL (quote signature, payee list, amount, time left), in plain words ("The payee list your server sent isn't the one your treasury wallet signed"). Approve stays locked. **Undo the attack** brings the passes back. |
+| 5   | Open **Privacy**.                                                                      | The same kind of payout seen two ways, read live from NEAR mainnet: the direct one can be followed from treasury to recipient; for the private one, no public transaction names the treasury.                                              |
+| 6   | Open **Ledger**, then **Verify** on a payout, and download a payslip or statement PDF. | The verify page re-reads the payout's NEAR transactions and checks the amount and recipient. The PDF carries the same verify link.                                                                                                         |
+
+With no keys and no money, in one line:
+
+```
+pnpm i && pnpm demo
+```
+
+It runs the whole story and prints 19 numbered checks in under a minute, from funding the treasury to a refused redirected payout, a payslip and CSV, the privacy proof, roles, CSV import, the contractor portal and the Veylo wallet. It exits non-zero if any check fails.
+
+On the live app, funding works, but paying people needs the 1Click partner key, which isn't set yet: live payout quotes say "Live quotes are not connected yet" and nothing is sent. No email is sent yet either, and the screens say so.
 
 ## Contents
 
@@ -436,26 +460,31 @@ Whichever wallet signs, the app verifies the signature over the exact bytes, the
 
 ## Current status
 
-| Surface                                                           | Status         | Detail                                                                                                                                                                              |
-| ----------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Web app, wallet bridge and API on Vercel                          | Live           | PostgreSQL on Neon, migrations applied, the deployed files checked byte for byte against the reviewed build.                                                                        |
-| Accounts, team, contractors, CSV import, schedules, roles, ledger | Live           | Stored in the database. Every query is scoped to one organisation.                                                                                                                  |
-| Payslips, statements, CSV export, audit log, verify page          | Live           | PDFs carry a verify link. The verify page reads NEAR on every load.                                                                                                                 |
-| Browser gates A, B, B2, C and F                                   | Live           | Tested against recorded real 1Click quotes, including tampered ones. The demo's tamper test shows them failing on purpose.                                                          |
-| Funding with USDC on NEAR (one-time deposit address)              | Live           | The quote and its status work without the partner key. A same-asset deposit has not been made on mainnet yet (spike S-F1).                                                          |
-| Funding with USDC from Base, Arbitrum or Solana, USDT from BNB    | Live           | Quoted by NEAR Intents. USDT from BNB Smart Chain was tested on mainnet by a test script (EVIDENCE rows 1 to 5). The others are fixture-tested.                                     |
-| Payouts, private and direct (USDC)                                | Fixture-tested | Live quotes need the 1Click partner key, which isn't set on the live app yet. Mechanisms were proven on mainnet by test scripts. Direct USDC to a NEAR account waits for spike S-N. |
-| Seven NEAR wallets                                                | Fixture-tested | Only Meteor was tried with a real wallet.                                                                                                                                           |
-| The Veylo wallet                                                  | Fixture-tested | Run in browser tests across two real origins. Its mainnet test (spike S-EW) has not run.                                                                                            |
-| Contractor portal: payslips, private balance, payout address      | Live           | The contractor's own view only.                                                                                                                                                     |
-| Local-currency estimates                                          | Live           | Display only. Shows "rate unavailable" when the source can't be reached.                                                                                                            |
-| Funding with NEAR, or USDT on NEAR                                | Coming soon    | Waiting for live tests (spikes S-F2 and S-FT).                                                                                                                                      |
-| Payouts in NEAR                                                   | Coming soon    | Quoted at payout time. Waiting for its live test (spike S-NR). Direct only.                                                                                                         |
-| Cash-out from a contractor's private balance                      | Coming soon    | Proven by a test script (EVIDENCE rows 24 to 26). The portal's version waits for spike S-P.                                                                                         |
-| Email delivery                                                    | Coming soon    | Messages are written to an outbox and nothing sends them yet. The screens say so.                                                                                                   |
-| Mainnet evidence                                                  | See the file   | [docs/EVIDENCE.md](docs/EVIDENCE.md), exactly as it stands: product payouts "None yet", and 31 transactions from test scripts (not the product).                                    |
+| Surface                                                           | Status         | Detail                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web app, wallet bridge and API on Vercel                          | Live           | PostgreSQL on Neon, migrations applied, the deployed files checked byte for byte against the reviewed build.                                                                                                                                                                          |
+| Accounts, team, contractors, CSV import, schedules, roles, ledger | Live           | Stored in the database. Every query is scoped to one organisation.                                                                                                                                                                                                                    |
+| Payslips, statements, CSV export, audit log, verify page          | Live           | PDFs carry a verify link. The verify page reads NEAR on every load.                                                                                                                                                                                                                   |
+| Browser gates A, B, B2, C and F                                   | Live           | Tested against recorded real 1Click quotes, including tampered ones. The demo's tamper test shows them failing on purpose.                                                                                                                                                            |
+| Funding with USDC on NEAR (one-time deposit address)              | Live           | Tested once on mainnet through the live app: 1.000000 USDC from a Meteor wallet to a one-time deposit address, final status Done ([docs/EVIDENCE.md](docs/EVIDENCE.md) Section 1, recorded by hand from the founder's report). The quote and its status work without the partner key. |
+| Funding with USDC from Base, Arbitrum or Solana, USDT from BNB    | Live           | Quoted by NEAR Intents. USDT from BNB Smart Chain was tested on mainnet by a test script (EVIDENCE Section 2, rows 1 to 5). The others are fixture-tested.                                                                                                                            |
+| Payouts, private and direct (USDC)                                | Fixture-tested | Live quotes need the 1Click partner key, which isn't set on the live app yet. Mechanisms were proven on mainnet by test scripts. Direct USDC to a NEAR account waits for spike S-N.                                                                                                   |
+| Seven NEAR wallets                                                | Fixture-tested | Only Meteor was tried with a real wallet.                                                                                                                                                                                                                                             |
+| The Veylo wallet                                                  | Fixture-tested | Run in browser tests across two real origins. Its mainnet test (spike S-EW) has not run.                                                                                                                                                                                              |
+| Contractor portal: payslips, private balance, payout address      | Live           | The contractor's own view only.                                                                                                                                                                                                                                                       |
+| Local-currency estimates                                          | Live           | Display only. Shows "rate unavailable" when the source can't be reached.                                                                                                                                                                                                              |
+| Funding with NEAR, or USDT on NEAR                                | Coming soon    | Waiting for live tests (spikes S-F2 and S-FT).                                                                                                                                                                                                                                        |
+| Payouts in NEAR                                                   | Coming soon    | Quoted at payout time. Waiting for its live test (spike S-NR). Direct only.                                                                                                                                                                                                           |
+| Cash-out from a contractor's private balance                      | Coming soon    | Proven by a test script (EVIDENCE Section 2, rows 24 to 26). The portal's version waits for spike S-P.                                                                                                                                                                                |
+| Email delivery                                                    | Coming soon    | Messages are written to an outbox and nothing sends them yet. The screens say so.                                                                                                                                                                                                     |
+| Mainnet evidence                                                  | See the file   | [docs/EVIDENCE.md](docs/EVIDENCE.md), exactly as it stands: product payouts "None yet"; one funding made through the live app (Section 1); and 31 transactions from test scripts, not the product (Section 2).                                                                        |
 
-**Mainnet evidence.** The mechanisms Veylo relies on were tested on NEAR mainnet with tiny amounts (0.03 to 2 USDC) by test scripts, not by the product. [docs/EVIDENCE.md](docs/EVIDENCE.md) lists every transaction, and `pnpm verify` re-checks each row against public RPC with no keys: funding a treasury through a 1Click deposit address, payouts from that balance (public and confidential) delivered on other chains, a shield from the public to the confidential balance, and a cash-out from the confidential balance. One private receipt between two confidential balances has no public transaction by design, so it can't be re-checked. EVIDENCE.md section 1, payouts made by the product itself, says "None yet." NEAR Intents has no testnet (Q-007), so these tests use mainnet. Every remaining test is prepared in [VERIFICATION.md](VERIFICATION.md) and refuses to run without the founder's approval.
+**Mainnet evidence.** [docs/EVIDENCE.md](docs/EVIDENCE.md) lists every transaction, and `pnpm verify` re-checks each row against public RPC with no keys.
+
+- **Made through the product (Section 1).** Payouts made by the product itself: Section 1 says "None yet." One funding is listed: on 2026-11-16 the founder sent 1.000000 USDC on NEAR from their own Meteor wallet to a one-time deposit address shown by the live app's "Send USDC on NEAR" flow, and the app's final status was Done. That row was recorded by hand from the founder's report after the transaction was read from public RPC. It is a funding, not a payout.
+- **Made by test scripts (Section 2).** The mechanisms Veylo relies on were tested on NEAR mainnet with tiny amounts (0.03 to 2 USDC) by test scripts, not by the product: funding a treasury through a 1Click deposit address, payouts from that balance (public and confidential) delivered on other chains, a shield from the public to the confidential balance, and a cash-out from the confidential balance. One private receipt between two confidential balances has no public transaction by design, so it can't be re-checked.
+
+NEAR Intents has no testnet (Q-007), so these tests use mainnet. Every remaining test is prepared in [VERIFICATION.md](VERIFICATION.md) and refuses to run without the founder's approval.
 
 ## Safety and tests
 
@@ -466,10 +495,10 @@ Whichever wallet signs, the app verifies the signature over the exact bytes, the
 
 | Check                                  | Latest result                             |
 | -------------------------------------- | ----------------------------------------- |
-| `pnpm test` (all tests)                | 2824 tests passed, 7 skipped, in 94 files |
+| `pnpm test` (all tests)                | 2833 tests passed, 7 skipped, in 94 files |
 | Tenant isolation suite                 | 238 of 238 passed                         |
 | Address validation suite               | 73 of 73 passed                           |
-| Mainnet evidence re-check (public RPC) | 31 of 31 passed                           |
+| Mainnet evidence re-check (public RPC) | 32 of 32 passed                           |
 | `pnpm demo`                            | 19 of 19 checks passed                    |
 | Deployed app, checked over the network | 47 of 47 checks passed                    |
 
@@ -547,6 +576,32 @@ verification/     Mainnet test scripts, kept apart and never imported by the pro
 Also at the top level: [ARCHITECTURE.md](ARCHITECTURE.md), [DECISIONS.md](DECISIONS.md), [VERIFICATION.md](VERIFICATION.md), [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md) and [docs/PUBLIC-READINESS.md](docs/PUBLIC-READINESS.md).
 
                                                                                                                                                                              |
+
+## Roadmap
+
+After the hackathon:
+
+- **Several approvers for a pay run.** The design is in [docs/ECOSYSTEM.md](docs/ECOSYSTEM.md).
+- **Other chains.** The code for Base, Arbitrum and Solana payouts exists and is switched off.
+- **Bank cash-out in local currency through licensed partners (after the hackathon).** Not built.
+- **The remaining mainnet tests** in [VERIFICATION.md](VERIFICATION.md), so the "coming soon" items can go live.
+
+## Built at NEAR HACKATHON
+
+Built at NEAR HACKATHON, for the Real-World Money (`realworld`) and Privacy & Private AI (`privacy`) tracks. All code in this repository was written during the hackathon window (from the 2026-10-19 announcement), with no pre-existing project (Q-001 and Q-005).
+
+**AI disclosure.** Claude Code (Anthropic) wrote and tested the code with the founder.
+
+**Libraries and services.**
+
+| Area               | What                                                                                                                                                                                                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language and tools | TypeScript 5.9.3, Node 24, pnpm 11, Vitest 4.1.12, Prettier 3.9.10, esbuild 0.28.2, tsx 4.23.15, Zod 4.6.7                                                                                                                                                             |
+| API                | Fastify 5.12.8 (cookie, cors, helmet and rate-limit plugins), Drizzle ORM 0.45.4, PostgreSQL (`pg` 8.23.1), pg-boss 12.38.1, pino 10.4.0                                                                                                                               |
+| Web                | Next.js 16.4.3 (static export), React 19.3.1, three.js 0.186.1, Phosphor Icons 2.1.10, Fontsource (Inter Tight, IBM Plex Mono, Instrument Serif) 5.3.0, sharp 0.35.5                                                                                                   |
+| NEAR and crypto    | `@hot-labs/near-connect` 0.12.0, near-api-js 7.4.0 and `@defuse-protocol/intents-sdk` 0.95.0 (in the `verification/` test scripts only), `@noble/curves`, `@noble/hashes`, `@noble/ciphers` 2.4.0, `@scure/base` 2.4.0, `@scure/bip39` 2.4.0, `qrcode-generator` 2.0.4 |
+| Checks             | Playwright 1.64.1 (Chromium and WebKit), axe-core 4.14.0, Lighthouse 13.5.0                                                                                                                                                                                            |
+| Services           | NEAR Intents (1Click API), NEAR RPC (fastnear), Vercel, Neon                                                                                                                                                                                                           |
 
 ## License
 

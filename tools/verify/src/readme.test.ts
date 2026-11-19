@@ -8,7 +8,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { formatFixed } from "@veylo/core";
 import { findClaims, findNotOffered } from "./claims.js";
+import { parseEvidence } from "./evidence.js";
 
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const read = (path: string) => readFileSync(resolve(root, path), "utf8");
@@ -163,13 +165,14 @@ describe("README top", () => {
     expect(readme.indexOf("<img ")).toBeLessThan(readme.search(/^## /m));
   });
 
-  it("opens with one paragraph on private, borderless payroll, then the evidence condition", () => {
-    expect(intro).toContain("**Veylo is private, borderless payroll on NEAR.**");
+  // The headline claims privacy, so the evidence condition travels with it (ARCHITECTURE.md rule).
+  it("opens with the private, borderless payroll paragraph, then the evidence condition", () => {
+    expect(intro).toContain("Veylo is private, borderless payroll on NEAR.");
     expect(intro).toContain("USDC");
-    expect(intro).toContain("gasless");
+    expect(intro).toContain("gas token");
     expect(intro).toContain(EVIDENCE_CONDITION);
-    expect(intro.indexOf("<img ")).toBeLessThan(intro.indexOf("**Veylo is private"));
-    expect(intro.indexOf("**Veylo is private")).toBeLessThan(intro.indexOf(EVIDENCE_CONDITION));
+    expect(intro.indexOf("<img ")).toBeLessThan(intro.indexOf("Veylo is private"));
+    expect(intro.indexOf("Veylo is private")).toBeLessThan(intro.indexOf(EVIDENCE_CONDITION));
   });
 
   it("links the live app, the repository and the demo video under the intro", () => {
@@ -182,7 +185,7 @@ describe("README top", () => {
   });
 });
 
-// The sections, in order. The diagrams add no section and the Contents list stays as it is.
+// The sections, in order. The diagrams add no section.
 const ORDER = [
   "Try it in 2 minutes",
   "Contents",
@@ -224,6 +227,12 @@ describe("README structure", () => {
     expect(firstTable(quickstart).header).toEqual(["#", "Do", "See"]);
     expect(quickstart).toContain("**Live app:** https://veylopay.vercel.app");
     expect(quickstart).toContain("pnpm i && pnpm demo");
+  });
+
+  it("Quick start gives the install and the no-keys demo", () => {
+    const quick = section("Quick start");
+    expect(quick).toContain("pnpm install --frozen-lockfile");
+    expect(firstTable(quick).rows.some((r) => (r[0] ?? "").includes("`pnpm demo`"))).toBe(true);
   });
 
   it("the Contents list links every later section, and every link lands on a heading", () => {
@@ -485,26 +494,62 @@ describe("README links and sources", () => {
   });
 });
 
+// The README says what docs/EVIDENCE.md says and no more: Section 1 is what the product itself made
+// (payouts, and funding made through the live app), Section 2 is what test scripts made.
 describe("README evidence", () => {
-  it("says what docs/EVIDENCE.md says about product payouts, and nothing more", () => {
-    const evidence = read("docs/EVIDENCE.md");
-    const product = evidence.split("## Section 1: Product payouts")[1]?.split("\n## ")[0] ?? "";
-    const none = /^None yet\.$/m.test(product);
-    const row = firstTable(section("Current status")).rows.find((r) => r[0] === "Mainnet evidence");
+  const evidence = read("docs/EVIDENCE.md");
+  const afterOne = evidence.split("## Section 1: Product payouts")[1] ?? "";
+  const [productText = "", scriptText = ""] = afterOne.split("\n## Section 2");
+  const productRows = parseEvidence(productText);
+  const scriptRows = parseEvidence(scriptText);
+  const isPayout = (r: { event: string }) => /^Payout/.test(r.event);
+  const payouts = productRows.filter(isPayout);
+  const fundings = productRows.filter((r) => !isPayout(r));
+  const status = section("Current status");
+  const evidenceRow = firstTable(status).rows.find((r) => r[0] === "Mainnet evidence");
+
+  it("says product payouts are 'None yet' exactly when EVIDENCE.md lists no payout", () => {
+    const none = /^None yet\.$/m.test(productText);
+    expect(none, "EVIDENCE.md says None yet and lists a payout, or the other way round").toBe(
+      payouts.length === 0,
+    );
     if (none) {
-      expect(row?.[2]).toContain('product payouts "None yet"');
-      expect(section("Current status")).toContain('says "None yet."');
+      expect(evidenceRow?.[2]).toContain('product payouts "None yet"');
+      expect(status).toContain('says "None yet."');
     } else {
-      expect(section("Current status")).not.toContain("None yet");
+      expect(status).not.toContain("None yet");
     }
   });
 
-  it("counts the same re-checked transactions that docs/EVIDENCE.md lists", () => {
-    const rows = read("docs/EVIDENCE.md")
-      .split("\n")
-      .filter((l) => /^\| \d+ \|/.test(l)).length;
-    expect(section("Current status")).toContain(`${rows} transactions from test scripts`);
-    expect(section("Safety and tests")).toContain(`${rows} of ${rows} passed`);
+  it("describes each funding in EVIDENCE.md Section 1, and calls it a funding, not a payout", () => {
+    expect(evidenceRow?.[2]).toContain(
+      fundings.length === 1 ? "one funding" : `${fundings.length} fundings`,
+    );
+    for (const row of fundings) {
+      const amount = row.amount
+        ? `${formatFixed(row.amount.units, row.amount.decimals)} ${row.amount.symbol}`
+        : "";
+      expect(status, "the README omits the funding's amount").toContain(amount);
+      expect(status, "the README omits the funding's date").toContain(row.date.slice(0, 10));
+      expect(status.includes("final status was Done") || status.includes("final status Done")).toBe(
+        row.event.includes("Done"),
+      );
+      if (row.source.startsWith("recorded by hand")) expect(status).toContain("recorded by hand");
+    }
+    expect(status).toContain("It is a funding, not a payout.");
+  });
+
+  it("counts the same re-checked transactions that docs/EVIDENCE.md lists, by section", () => {
+    const total = productRows.length + scriptRows.length;
+    expect(status).toContain(`${scriptRows.length} transactions from test scripts`);
+    expect(section("Safety and tests")).toContain(`${total} of ${total} passed`);
+  });
+
+  it("names no NEAR account but the Intents verifier (the sender stays redacted)", () => {
+    const withoutUrls = readme.replace(/https?:\/\/\S+/g, "");
+    const named = new Set(withoutUrls.match(/\b[a-z0-9][a-z0-9_-]*\.near\b(?!\.\w)/g) ?? []);
+    named.delete("intents.near");
+    expect([...named]).toEqual([]);
   });
 });
 
@@ -829,7 +874,7 @@ describe("README diagrams: where they are, and their shape", () => {
     expect(headings).toEqual(ORDER);
     const links = [...section("Contents").matchAll(/\]\(#([^)]+)\)/g)].map((m) => m[1] ?? "");
     expect(links).toEqual(ORDER.filter((h) => h !== "Contents").map(slug));
-    expect(section("Contents").trim().split("\n")).toHaveLength(18);
+    expect(section("Contents").trim().split("\n")).toHaveLength(ORDER.length - 1);
   });
 
   it("the private and direct diagram's caption carries the evidence condition, verbatim", () => {

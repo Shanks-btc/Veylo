@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createTestDb, seedLineItem } from "@veylo/db/test-db";
 import { schema } from "@veylo/db";
 import { eq } from "drizzle-orm";
@@ -208,6 +211,62 @@ describe("EVIDENCE.md", () => {
 
   it("holds no signature, key or token", () => {
     expect(renderEvidence([])).not.toMatch(/ed25519:|eyJ|secret|signature/i);
+  });
+});
+
+// The committed docs/EVIDENCE.md. Section 2 is generated from the recorded Phase 2 rows. Section 1 is
+// what the product itself made: payouts (none yet) and funding made through the live app, which a
+// person recorded by hand after reading the transaction from public RPC (so it says so, in its Source).
+describe("the committed docs/EVIDENCE.md", () => {
+  const file = readFileSync(
+    resolve(fileURLToPath(new URL("../../..", import.meta.url)), "docs", "EVIDENCE.md"),
+    "utf8",
+  );
+  const afterOne = file.split("## Section 1: Product payouts")[1] ?? "";
+  const [sectionOne = "", sectionTwo = ""] = afterOne.split("\n## Section 2");
+  const productRows = parseEvidence(sectionOne);
+  const key = (r: EvidenceRow) => `${r.chain}:${r.tx}:${r.party}:${r.amount?.units ?? ""}`;
+
+  it("parses: every row is well formed, in both sections", () => {
+    expect(productRows.length).toBeGreaterThan(0);
+    expect(parseEvidence(sectionTwo).length).toBe(PHASE2_ROWS.length);
+    expect(parseEvidence(file)).toHaveLength(productRows.length + PHASE2_ROWS.length);
+  });
+
+  it("Section 2 is exactly the recorded Phase 2 rows, made by test scripts", () => {
+    expect(parseEvidence(sectionTwo).map(key).sort()).toEqual(PHASE2_ROWS.map(key).sort());
+    expect(sectionTwo).toContain("These were made by test scripts, not by the product.");
+  });
+
+  it("says 'None yet.' for payouts exactly when no payout is listed", () => {
+    const payouts = productRows.filter((r) => /^Payout/.test(r.event));
+    expect(/^None yet\.$/m.test(sectionOne)).toBe(payouts.length === 0);
+    // The funding is not called a payout.
+    for (const r of productRows.filter((x) => !/^Payout/.test(x.event)))
+      expect(r.event).not.toMatch(/payout/i);
+  });
+
+  it("Section 1 rows that were recorded by hand are real, final NEAR transactions, in USDC, with a link", () => {
+    const byHand = productRows.filter((r) => r.source.startsWith("recorded by hand"));
+    expect(byHand.length).toBeGreaterThan(0);
+    for (const r of byHand) {
+      expect(r.chain).toBe("near");
+      expect(r.tx).toMatch(/^[1-9A-HJ-NP-Za-km-z]{43,44}$/);
+      expect(r.amount?.symbol).toBe("USDC");
+      expect(r.date).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+      expect(sectionOne).toContain(`https://nearblocks.io/txns/${r.tx}`);
+      expect(r.source).toMatch(/public RPC on \d{4}-\d{2}-\d{2}/);
+    }
+  });
+
+  it("names no NEAR account but the Intents verifier: the sender stays redacted", () => {
+    const named = new Set(file.match(/\b[a-z0-9][a-z0-9_-]*\.near\b/g) ?? []);
+    named.delete("intents.near");
+    expect([...named]).toEqual([]);
+  });
+
+  it("holds no signature, key or token", () => {
+    expect(file).not.toMatch(/ed25519:|eyJ|secret|signature/i);
   });
 });
 
